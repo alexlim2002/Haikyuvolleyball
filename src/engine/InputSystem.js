@@ -1,5 +1,6 @@
-import { swapKeyVal } from "../../utils/swapKeyVal.js";
+import { swapKeyVal } from "../utils/swapKeyVal.js";
 import { Enum } from "../utils/Enum.js";
+import { TripleBufferStatic } from "./TripleBuffer.js";
 
 export const InputType = Enum(
   "1P_UP",
@@ -21,7 +22,7 @@ function mappingFnFrom(mapping) {
 /**
  * initInputSystem({ keyboardMapping, touchMapping })
  *
- * - InputType 기준으로 상태테이블을 만들고 이벤트로 갱신
+ * - InputType 기준으로 TripleBufferStatic을 만들고 이벤트로 갱신
  * - 매 틱 next()를 호출하면 그 순간의 스냅샷을 yield하는
  *   async generator 함수를 반환
  *
@@ -31,23 +32,28 @@ export function initInputSystem({ keyboardMapping, touchMapping }) {
   const fromKeyboard = mappingFnFrom(keyboardMapping);
   // TODO: const fromTouch = mappingFnFrom(touchMapping);
 
-  const stateTable = Object.fromEntries(
-    Object.keys(InputType).map((type) => [type, false]),
-  );
+  const emptyTable = () =>
+    Object.fromEntries(Object.keys(InputType).map((k) => [k, false]));
+
+  const stateTable = new TripleBufferStatic(emptyTable);
 
   window.addEventListener("keydown", (e) => {
-    const type = fromKeyboard(e.code);
-    if (type !== undefined) stateTable[type] = true;
+    const input = fromKeyboard(e.code);
+    if (input !== undefined) {
+      stateTable[input] = true;
+    }
   });
 
   window.addEventListener("keyup", (e) => {
-    const type = fromKeyboard(e.code);
-    if (type !== undefined) stateTable[type] = false;
+    const input = fromKeyboard(e.code);
+    if (input !== undefined) {
+      stateTable[input] = false;
+    }
   });
 
   async function* inputsOfThisTick() {
     while (true) {
-      yield { ...stateTable };
+      yield stateTable.buff;
     }
   }
 

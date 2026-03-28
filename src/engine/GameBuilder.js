@@ -1,7 +1,10 @@
-import { Renderer }       from "./Renderer.js";
-import { Effector }       from "./Effector.js";
-import { initAssetStore } from "./AssetStore.js";
+import { Renderer }        from "./Renderer.js";
+import { Effector }        from "./Effector.js";
+import { initAssetStore }  from "./AssetStore.js";
 import { initInputSystem } from "./InputSystem.js";
+
+const TPS     = 60;
+const TICK_MS = 1000 / TPS;
 
 /**
  * GameBuilder
@@ -74,21 +77,23 @@ class Game {
   #renderer;
   #assets;
   #inputsOfThisTick;
-  #rafId = null;
-  #inputGen = null;
+  #inputGen  = null;
+  #rafId     = null;
+  #lastTick  = 0;
 
   constructor({ effector, renderer, assets, inputsOfThisTick }) {
-    this.#effector = effector;
-    this.#renderer = renderer;
-    this.#assets   = assets;
+    this.#effector         = effector;
+    this.#renderer         = renderer;
+    this.#assets           = assets;
     this.#inputsOfThisTick = inputsOfThisTick;
   }
 
   start(match) {
     this.#effector.init();
     this.#inputGen = this.#inputsOfThisTick();
-    // TODO: match로 World/Rules 초기화
-    this.#rafId = requestAnimationFrame(this.#loop);
+    this.#lastTick = performance.now();
+    // TODO: match로 StateSystem 초기화
+    this.#rafId = requestAnimationFrame(this.#rafLoop);
     return this;
   }
 
@@ -101,11 +106,15 @@ class Game {
     return this;
   }
 
-  #loop = async () => {
-    const { value: inputs } = await this.#inputGen.next();
-    // TODO: world.update(inputs)
+  #rafLoop = async (timestamp) => {
+    if (timestamp - this.#lastTick >= TICK_MS) {
+      this.#lastTick = timestamp;
+      const { value: inputs } = await this.#inputGen.next();
+      // TODO: stateSystem.tick(inputs)
+    }
+
     this.#renderer.clear();
-    this.#renderer.draw(null); // TODO: world 연결
-    this.#rafId = requestAnimationFrame(this.#loop);
+    this.#renderer.draw(null); // TODO: stateSystem.buff 연결
+    this.#rafId = requestAnimationFrame(this.#rafLoop);
   };
 }
