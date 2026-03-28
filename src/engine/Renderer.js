@@ -1,3 +1,5 @@
+// 틱에따라 재생되는것들.
+
 /**
  * RenderEngine
  * Canvas 2D를 감싸는 출력 엔진.
@@ -6,25 +8,31 @@
  * - 화면 크기에 맞게 스케일만 조정 (letterbox)
  */
 
-const LOGICAL_WIDTH  = 800;
+const LOGICAL_WIDTH = 800;
 const LOGICAL_HEIGHT = 450;
 
 export class RenderEngine {
   #canvas;
   #ctx;
 
-  get width()  { return LOGICAL_WIDTH; }
-  get height() { return LOGICAL_HEIGHT; }
-  get ctx()    { return this.#ctx; }
+  get width() {
+    return LOGICAL_WIDTH;
+  }
+  get height() {
+    return LOGICAL_HEIGHT;
+  }
+  get ctx() {
+    return this.#ctx;
+  }
 
   constructor(canvas) {
     this.#canvas = canvas;
-    this.#canvas.width  = LOGICAL_WIDTH;
+    this.#canvas.width = LOGICAL_WIDTH;
     this.#canvas.height = LOGICAL_HEIGHT;
-    this.#ctx = canvas.getContext('2d');
+    this.#ctx = canvas.getContext("2d");
 
     this.#applyScale();
-    window.addEventListener('resize', () => this.#applyScale());
+    window.addEventListener("resize", () => this.#applyScale());
   }
 
   clear() {
@@ -44,16 +52,26 @@ export class RenderEngine {
   #drawPlaceholder() {
     const ctx = this.#ctx;
     // 하늘
-    ctx.fillStyle = '#87ceeb';
+    ctx.fillStyle = "#87ceeb";
     ctx.fillRect(0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT);
     // 바닥
-    ctx.fillStyle = '#c8a46e';
-    ctx.fillRect(0, LOGICAL_HEIGHT * 0.75, LOGICAL_WIDTH, LOGICAL_HEIGHT * 0.25);
+    ctx.fillStyle = "#c8a46e";
+    ctx.fillRect(
+      0,
+      LOGICAL_HEIGHT * 0.75,
+      LOGICAL_WIDTH,
+      LOGICAL_HEIGHT * 0.25,
+    );
     // 네트 기둥
-    ctx.fillStyle = '#555';
-    ctx.fillRect(LOGICAL_WIDTH / 2 - 4, LOGICAL_HEIGHT * 0.45, 8, LOGICAL_HEIGHT * 0.3);
+    ctx.fillStyle = "#555";
+    ctx.fillRect(
+      LOGICAL_WIDTH / 2 - 4,
+      LOGICAL_HEIGHT * 0.45,
+      8,
+      LOGICAL_HEIGHT * 0.3,
+    );
     // 네트
-    ctx.strokeStyle = '#fff';
+    ctx.strokeStyle = "#fff";
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.moveTo(LOGICAL_WIDTH * 0.1, LOGICAL_HEIGHT * 0.45);
@@ -63,10 +81,10 @@ export class RenderEngine {
 
   #applyScale() {
     const scale = Math.min(
-      window.innerWidth  / LOGICAL_WIDTH,
-      window.innerHeight / LOGICAL_HEIGHT
+      window.innerWidth / LOGICAL_WIDTH,
+      window.innerHeight / LOGICAL_HEIGHT,
     );
-    this.#canvas.style.width  = `${LOGICAL_WIDTH  * scale}px`;
+    this.#canvas.style.width = `${LOGICAL_WIDTH * scale}px`;
     this.#canvas.style.height = `${LOGICAL_HEIGHT * scale}px`;
   }
 }
