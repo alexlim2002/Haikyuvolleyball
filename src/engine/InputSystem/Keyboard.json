@@ -1,0 +1,11 @@
+{
+  "1P_UP": "ArrowUp",
+  "1P_DOWN": "ArrowDown",
+  "1P_LEFT": "ArrowLeft",
+  "1P_RIGHT": "ArrowRight",
+
+  "2P_UP": "KeyW",
+  "2P_DOWN": "KeyS",
+  "2P_LEFT": "KeyA",
+  "2P_RIGHT": "KeyD"
+}
