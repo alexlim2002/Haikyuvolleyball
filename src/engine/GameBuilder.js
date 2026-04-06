@@ -1,9 +1,11 @@
-import { Renderer }        from "./Renderer.js";
-import { Effector }        from "./Effector.js";
-import { initAssetStore }  from "./AssetStore.js";
+import { Renderer } from "./Renderer.js";
+import { Effector } from "./Effector.js";
+import { initAssetStore } from "./AssetStore.js";
 import { initInputSystem } from "./InputSystem.js";
+import { StateSystem } from "./StateSystem.js";
+import { EntityManager } from "./EntityManager.js";
 
-const TPS     = 60;
+const TPS = 60;
 const TICK_MS = 1000 / TPS;
 
 /**
@@ -31,8 +33,8 @@ const TICK_MS = 1000 / TPS;
 export class GameBuilder {
   #canvas;
   #assetDescription = {};
-  #keyboardMapping  = {};
-  #touchMapping     = {};
+  #keyboardMapping = {};
+  #touchMapping = {};
 
   constructor(canvas) {
     this.#canvas = canvas;
@@ -55,14 +57,18 @@ export class GameBuilder {
 
   async build() {
     const effector = new Effector();
-    const renderer = new Renderer(this.#canvas);
-    const assets   = await initAssetStore(this.#assetDescription, effector.decode.bind(effector));
+    const assets = await initAssetStore(
+      this.#assetDescription,
+      effector.decode.bind(effector),
+    );
+    effector.setAssets(assets);
+    const renderer = new Renderer(this.#canvas, assets);
     const inputsOfThisTick = initInputSystem({
       keyboardMapping: this.#keyboardMapping,
-      touchMapping:    this.#touchMapping,
+      touchMapping: this.#touchMapping,
     });
 
-    return new Game({ effector, renderer, assets, inputsOfThisTick });
+    return new Game({ effector, renderer, inputsOfThisTick });
   }
 }
 
@@ -75,24 +81,25 @@ export class GameBuilder {
 class Game {
   #effector;
   #renderer;
-  #assets;
   #inputsOfThisTick;
-  #inputGen  = null;
-  #rafId     = null;
-  #lastTick  = 0;
+  #entityManager = null;
+  #stateSystem = null;
+  #inputGen = null;
+  #rafId = null;
+  #lastTick = 0;
 
-  constructor({ effector, renderer, assets, inputsOfThisTick }) {
-    this.#effector         = effector;
-    this.#renderer         = renderer;
-    this.#assets           = assets;
+  constructor({ effector, renderer, inputsOfThisTick }) {
+    this.#effector = effector;
+    this.#renderer = renderer;
     this.#inputsOfThisTick = inputsOfThisTick;
   }
 
-  start(match) {
+  start(match, logic) {
     this.#effector.init();
+    this.#entityManager = new EntityManager();
+    this.#stateSystem = new StateSystem(match, this.#entityManager, logic);
     this.#inputGen = this.#inputsOfThisTick();
     this.#lastTick = performance.now();
-    // TODO: match로 StateSystem 초기화
     this.#rafId = requestAnimationFrame(this.#rafLoop);
     return this;
   }
@@ -102,19 +109,27 @@ class Game {
       cancelAnimationFrame(this.#rafId);
       this.#rafId = null;
     }
+    this.#entityManager = null;
+    this.#stateSystem = null;
     this.#inputGen = null;
     return this;
   }
 
   #rafLoop = async (timestamp) => {
+    if (this.#stateSystem === null) {
+      this.#rafId = requestAnimationFrame(this.#rafLoop);
+      return;
+    }
+
     if (timestamp - this.#lastTick >= TICK_MS) {
       this.#lastTick = timestamp;
       const { value: inputs } = await this.#inputGen.next();
-      // TODO: stateSystem.tick(inputs)
+      const { toPlay } = this.#stateSystem.tick(inputs);
+      this.#effector.play(toPlay);
     }
 
     this.#renderer.clear();
-    this.#renderer.draw(null); // TODO: stateSystem.buff 연결
+    this.#renderer.draw(this.#stateSystem.buf, this.#entityManager);
     this.#rafId = requestAnimationFrame(this.#rafLoop);
   };
 }

@@ -10,6 +10,7 @@
  */
 export class Effector {
   #ctx = null;
+  #assets = null;
 
   init() {
     if (this.#ctx) return this;
@@ -21,12 +22,20 @@ export class Effector {
     return this.#ctx.decodeAudioData(arrayBuffer);
   }
 
-  playSound(audioBuffer) {
+  setAssets(assets) {
+    this.#assets = assets;
+  }
+
+  play(toPlay) {
+    for (const id of toPlay) {
+      this.#playSound(this.#assets[id]);
+    }
+  }
+
+  #playSound(audioBuffer) {
     const source = this.#ctx.createBufferSource();
     source.buffer = audioBuffer;
     source.connect(this.#ctx.destination);
     source.start();
   }
-
-  // TODO: playParticle(particleDesc, position)
 }
