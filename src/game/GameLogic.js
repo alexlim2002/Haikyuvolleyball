@@ -19,7 +19,7 @@ const DIVE_VY   = 3   / LW;
 const BLOCK_VY  = 9.1 / LW;
 
 const P_GRAVITY    = 0.5 / LW;
-const BALL_GRAVITY = 0.15 / LW;
+const BALL_GRAVITY = 0.05 / LW;
 const BALL_REST    = 0.9;
 
 const BALL_R      = 18  / LW;
