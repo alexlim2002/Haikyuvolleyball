@@ -9,6 +9,7 @@
 //    → tmpgame에서 직접 매핑 추가
 
 import { initInputSystem, InputType } from "./engine/InputSystem.js";
+import { createBotController } from "./game/ai/BotController.js";
 
 // ─── 캔버스 ────────────────────────────────────────────────────
 const canvas = document.getElementById("gameCanvas");
@@ -94,10 +95,25 @@ function makeState() {
     phase: "rally", // 'rally' | 'point' | 'gameover'
     pointTimer: 0,
     lastScorer: "p1",
+    rallyNumber: 1,
   };
 }
 
 let state = makeState();
+
+const botController = createBotController({
+  width: W,
+  ground: GROUND,
+  netX: NET_X,
+  netTop: NET_TOP,
+  netWidth: NET_W,
+  minX: NET_X + NET_W / 2,
+  maxX: W,
+  ballRadius: BALL_R,
+  ballGravity: BALL_GRAV,
+  playerHeight: P_H,
+});
+botController.beginNewRally(state.rallyNumber);
 
 // ─── 액션 헬퍼 ─────────────────────────────────────────────────
 function setAction(p, type) {
@@ -106,6 +122,17 @@ function setAction(p, type) {
 
 function isLocked(p) {
   return p.action.duration > 0 && p.action.tick < p.action.duration;
+}
+
+function withBotInputs(inputs, s) {
+  const nextInputs = { ...inputs };
+  const botInputs = botController.makeInputs(s);
+
+  for (const key in botInputs) {
+    nextInputs[key] = botInputs[key];
+  }
+
+  return nextInputs;
 }
 
 // ─── 플레이어 틱 ───────────────────────────────────────────────
@@ -225,9 +252,19 @@ function tickBall(s) {
   collideBallPlayer(b, s.p2);
 
   if (b.y + BALL_R > GROUND) {
-    b.y = GROUND - BALL_R;
-    b.vy *= -0.6;
+    if (b.x < NET_X) {
+      awardPoint(s, "p2");
+    } else {
+      awardPoint(s, "p1");
+    }
   }
+}
+
+function awardPoint(s, scorer) {
+  s.score[scorer]++;
+  s.lastScorer = scorer;
+  s.phase = "point";
+  s.pointTimer = 90;
 }
 
 function collideBallPlayer(b, p) {
@@ -281,14 +318,18 @@ function tick(inputs) {
       s.p1 = makePlayer(150, "left");
       s.p2 = makePlayer(650, "right");
       s.ball = makeBall(s.lastScorer === "p2");
+      s.rallyNumber++;
+      botController.beginNewRally(s.rallyNumber);
       s.phase = "rally";
     }
     return;
   }
 
+  const inputsForThisTick = withBotInputs(inputs, s);
+
   tickPlayer(
     s.p1,
-    inputs,
+    inputsForThisTick,
     {
       left: "1P_LEFT",
       right: "1P_RIGHT",
@@ -306,7 +347,7 @@ function tick(inputs) {
 
   tickPlayer(
     s.p2,
-    inputs,
+    inputsForThisTick,
     {
       left: "2P_LEFT",
       right: "2P_RIGHT",
@@ -364,6 +405,19 @@ function drawPlayer(p, label) {
   ctx.fillText(label, p.x, by + 36);
 }
 
+function drawBotType(p) {
+  ctx.fillStyle = "rgba(0,0,0,0.45)";
+  ctx.fillRect(p.x - 42, p.y - P_H - 40, 84, 18);
+  ctx.fillStyle = "#fff";
+  ctx.font = "11px monospace";
+  ctx.textAlign = "center";
+  ctx.fillText(
+    `AI: ${botController.getCurrentTypeLabel()}`,
+    p.x,
+    p.y - P_H - 27,
+  );
+}
+
 function render() {
   const s = state;
   ctx.clearRect(0, 0, W, H);
@@ -379,6 +433,7 @@ function render() {
 
   drawPlayer(s.p1, "1P");
   drawPlayer(s.p2, "2P");
+  drawBotType(s.p2);
 
   ctx.beginPath();
   ctx.arc(s.ball.x, s.ball.y, BALL_R, 0, Math.PI * 2);
