@@ -10,6 +10,14 @@
 const LOGICAL_WIDTH  = 800;
 const LOGICAL_HEIGHT = 450;
 
+function computeSpriteIndex(entity, state) {
+  const actionDef = entity.actions?.[state.actionType] ?? entity.actions?.DEFAULT;
+  if (!actionDef?.sprites) return 0;
+  const { start, count } = actionDef.sprites;
+  if (count <= 1 || !state.actionDuration) return start;
+  return start + Math.round((count - 1) * state.actionTick / state.actionDuration);
+}
+
 export class Renderer {
   #canvas;
   #ctx;
@@ -56,15 +64,26 @@ export class Renderer {
       const asset = this.#assets[entity.assetId];
       if (!asset) continue;
 
+      const { x, y, w, h } = this.#toCanvasRect(entity, state);
+      const flipH = state.facing === -1;
+
       if (Array.isArray(asset)) {
-        // 스프라이트
-        const frame = asset[entity.spriteIndex ?? 0];
-        this.#drawSprite(frame, state.x, state.y, state.w, state.h, entity.flipH, entity.flipV);
+        const frame = asset[computeSpriteIndex(entity, state)];
+        this.#drawSprite(frame, x, y, w, h, flipH, entity.flipV);
       } else {
-        // 단일 이미지
-        this.#drawImage(asset, state.x, state.y, state.w, state.h, entity.flipH, entity.flipV);
+        this.#drawImage(asset, x, y, w, h, flipH, entity.flipV);
       }
     }
+  }
+
+  #toCanvasRect(entity, state) {
+    const w  = (entity.size?.w ?? 0) * LOGICAL_WIDTH;
+    const h  = (entity.size?.h ?? 0) * LOGICAL_WIDTH;
+    const cx = state.x * LOGICAL_WIDTH;
+    const cy = LOGICAL_HEIGHT - state.y * LOGICAL_WIDTH;
+    const x  = cx - w / 2;
+    const y  = entity.origin === 'center' ? cy - h / 2 : cy - h;
+    return { x, y, w, h };
   }
 
   #drawSprite(frame, x, y, w, h, flipH, flipV) {
