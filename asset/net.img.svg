@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="10" height="150" viewBox="0 0 10 150">
+  <defs>
+    <pattern id="mesh" x="0" y="0" width="5" height="5" patternUnits="userSpaceOnUse">
+      <path d="M0 0 L5 0 M0 0 L0 5" stroke="#ccc" stroke-width="0.5" fill="none"/>
+    </pattern>
+  </defs>
+  <!-- Net post / body -->
+  <rect width="10" height="150" fill="#555"/>
+  <!-- Net mesh -->
+  <rect width="10" height="148" fill="url(#mesh)" opacity="0.6"/>
+  <!-- Top tape (white band) -->
+  <rect y="0" width="10" height="6" fill="#eee"/>
+  <!-- Bottom anchor -->
+  <rect y="144" width="10" height="6" fill="#444"/>
+</svg>

@@ -111,7 +111,7 @@ export function initInputSystem({ keyboardMapping, touchMapping }) {
     if (input === double.input) double.phase = 1;
   });
 
-  async function* inputsOfThisTick() {
+  function* inputsOfThisTick() {
     while (true) {
       let ret = { ...stateTable };
       doubleInputs.forEach((k) => {

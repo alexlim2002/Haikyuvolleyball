@@ -1,0 +1,188 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="64" viewBox="0 0 960 64">
+  <defs>
+    <!-- Reusable head -->
+    <circle id="hd" r="9" fill="#fde8b0" stroke="#c8a060" stroke-width="1"/>
+    <!-- Body segment -->
+    <line id="bd" x1="0" y1="0" x2="0" y2="18" stroke="#555" stroke-width="3" stroke-linecap="round"/>
+    <!-- Leg -->
+    <line id="lg" x1="0" y1="0" x2="-6" y2="14" stroke="#555" stroke-width="2.5" stroke-linecap="round"/>
+    <line id="lg2" x1="0" y1="0" x2="6" y2="14" stroke="#555" stroke-width="2.5" stroke-linecap="round"/>
+  </defs>
+
+  <!-- ─── Frame 0: IDLE ─────────────────────────── x=0 -->
+  <rect x="0" y="0" width="64" height="64" fill="#888"/>
+  <circle cx="32" cy="10" r="9" fill="#fde8b0" stroke="#c8a060" stroke-width="1"/>
+  <!-- body -->
+  <line x1="32" y1="19" x2="32" y2="37" stroke="#444" stroke-width="3" stroke-linecap="round"/>
+  <!-- arms down -->
+  <line x1="32" y1="22" x2="20" y2="32" stroke="#555" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="32" y1="22" x2="44" y2="32" stroke="#555" stroke-width="2.5" stroke-linecap="round"/>
+  <!-- legs -->
+  <line x1="32" y1="37" x2="24" y2="54" stroke="#555" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="32" y1="37" x2="40" y2="54" stroke="#555" stroke-width="2.5" stroke-linecap="round"/>
+
+  <!-- ─── Frame 1: RUN ──────────────────────────── x=64 -->
+  <rect x="64" y="0" width="64" height="64" fill="#c0601a"/>
+  <circle cx="96" cy="10" r="9" fill="#fde8b0" stroke="#c8a060" stroke-width="1"/>
+  <line x1="96" y1="19" x2="94" y2="37" stroke="#444" stroke-width="3" stroke-linecap="round"/>
+  <!-- arms swing -->
+  <line x1="94" y1="22" x2="106" y2="30" stroke="#555" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="94" y1="22" x2="82" y2="32" stroke="#555" stroke-width="2.5" stroke-linecap="round"/>
+  <!-- legs stride -->
+  <line x1="94" y1="37" x2="84" y2="50" stroke="#555" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="94" y1="37" x2="104" y2="52" stroke="#555" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="84" y1="50" x2="80" y2="60" stroke="#555" stroke-width="2" stroke-linecap="round"/>
+  <line x1="104" y1="52" x2="110" y2="60" stroke="#555" stroke-width="2" stroke-linecap="round"/>
+
+  <!-- ─── Frame 2: JUMP ─────────────────────────── x=128 -->
+  <rect x="128" y="0" width="64" height="64" fill="#b8960a"/>
+  <circle cx="160" cy="8" r="9" fill="#fde8b0" stroke="#c8a060" stroke-width="1"/>
+  <line x1="160" y1="17" x2="160" y2="34" stroke="#444" stroke-width="3" stroke-linecap="round"/>
+  <!-- arms raised -->
+  <line x1="160" y1="20" x2="148" y2="12" stroke="#555" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="160" y1="20" x2="172" y2="12" stroke="#555" stroke-width="2.5" stroke-linecap="round"/>
+  <!-- legs tucked -->
+  <line x1="160" y1="34" x2="150" y2="46" stroke="#555" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="160" y1="34" x2="170" y2="46" stroke="#555" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="150" y1="46" x2="144" y2="56" stroke="#555" stroke-width="2" stroke-linecap="round"/>
+  <line x1="170" y1="46" x2="176" y2="56" stroke="#555" stroke-width="2" stroke-linecap="round"/>
+
+  <!-- ─── Frame 3: SPIKE-1 (arm raising) ─────────── x=192 -->
+  <rect x="192" y="0" width="64" height="64" fill="#9b1a0a"/>
+  <circle cx="222" cy="8" r="9" fill="#fde8b0" stroke="#c8a060" stroke-width="1"/>
+  <line x1="222" y1="17" x2="222" y2="34" stroke="#444" stroke-width="3" stroke-linecap="round"/>
+  <!-- spike arm raised high -->
+  <line x1="222" y1="20" x2="236" y2="6" stroke="#c00" stroke-width="3" stroke-linecap="round"/>
+  <line x1="222" y1="20" x2="210" y2="28" stroke="#555" stroke-width="2.5" stroke-linecap="round"/>
+  <!-- legs -->
+  <line x1="222" y1="34" x2="213" y2="50" stroke="#555" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="222" y1="34" x2="231" y2="50" stroke="#555" stroke-width="2.5" stroke-linecap="round"/>
+
+  <!-- ─── Frame 4: SPIKE-2 (arm mid swing) ─────────── x=256 -->
+  <rect x="256" y="0" width="64" height="64" fill="#b82010"/>
+  <circle cx="286" cy="9" r="9" fill="#fde8b0" stroke="#c8a060" stroke-width="1"/>
+  <line x1="286" y1="18" x2="284" y2="35" stroke="#444" stroke-width="3" stroke-linecap="round"/>
+  <!-- spike arm diagonal -->
+  <line x1="284" y1="20" x2="300" y2="18" stroke="#c00" stroke-width="3" stroke-linecap="round"/>
+  <line x1="284" y1="20" x2="272" y2="28" stroke="#555" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="284" y1="35" x2="275" y2="51" stroke="#555" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="284" y1="35" x2="293" y2="51" stroke="#555" stroke-width="2.5" stroke-linecap="round"/>
+
+  <!-- ─── Frame 5: SPIKE-3 (arm follow through) ─────── x=320 -->
+  <rect x="320" y="0" width="64" height="64" fill="#d03020"/>
+  <circle cx="350" cy="10" r="9" fill="#fde8b0" stroke="#c8a060" stroke-width="1"/>
+  <line x1="350" y1="19" x2="348" y2="36" stroke="#444" stroke-width="3" stroke-linecap="round"/>
+  <!-- spike arm forward/down -->
+  <line x1="348" y1="20" x2="362" y2="28" stroke="#c00" stroke-width="3" stroke-linecap="round"/>
+  <line x1="348" y1="20" x2="336" y2="26" stroke="#555" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="348" y1="36" x2="339" y2="52" stroke="#555" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="348" y1="36" x2="357" y2="52" stroke="#555" stroke-width="2.5" stroke-linecap="round"/>
+
+  <!-- ─── Frame 6: BLOCK-1 (arms going up) ──────────── x=384 -->
+  <rect x="384" y="0" width="64" height="64" fill="#6a2590"/>
+  <circle cx="414" cy="8" r="9" fill="#fde8b0" stroke="#c8a060" stroke-width="1"/>
+  <line x1="414" y1="17" x2="414" y2="34" stroke="#444" stroke-width="3" stroke-linecap="round"/>
+  <!-- both arms up wide -->
+  <line x1="414" y1="20" x2="400" y2="8" stroke="#9b59b6" stroke-width="3" stroke-linecap="round"/>
+  <line x1="414" y1="20" x2="428" y2="8" stroke="#9b59b6" stroke-width="3" stroke-linecap="round"/>
+  <line x1="414" y1="34" x2="405" y2="50" stroke="#555" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="414" y1="34" x2="423" y2="50" stroke="#555" stroke-width="2.5" stroke-linecap="round"/>
+
+  <!-- ─── Frame 7: BLOCK-2 (arms at peak) ──────────── x=448 -->
+  <rect x="448" y="0" width="64" height="64" fill="#7d35a8"/>
+  <circle cx="478" cy="6" r="9" fill="#fde8b0" stroke="#c8a060" stroke-width="1"/>
+  <line x1="478" y1="15" x2="478" y2="32" stroke="#444" stroke-width="3" stroke-linecap="round"/>
+  <!-- both arms extended horizontally at top -->
+  <line x1="478" y1="17" x2="462" y2="14" stroke="#9b59b6" stroke-width="3" stroke-linecap="round"/>
+  <line x1="478" y1="17" x2="494" y2="14" stroke="#9b59b6" stroke-width="3" stroke-linecap="round"/>
+  <line x1="478" y1="32" x2="468" y2="48" stroke="#555" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="478" y1="32" x2="488" y2="48" stroke="#555" stroke-width="2.5" stroke-linecap="round"/>
+
+  <!-- ─── Frame 8: DIVE-1 (starting dive) ──────────── x=512 -->
+  <rect x="512" y="0" width="64" height="64" fill="#0e8070"/>
+  <circle cx="536" cy="28" r="9" fill="#fde8b0" stroke="#c8a060" stroke-width="1"/>
+  <!-- body horizontal, head leading left -->
+  <line x1="527" y1="28" x2="560" y2="38" stroke="#444" stroke-width="3" stroke-linecap="round"/>
+  <!-- arms extended forward -->
+  <line x1="527" y1="28" x2="516" y2="25" stroke="#1abc9c" stroke-width="3" stroke-linecap="round"/>
+  <!-- legs trailing -->
+  <line x1="560" y1="38" x2="568" y2="30" stroke="#555" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="560" y1="38" x2="570" y2="42" stroke="#555" stroke-width="2.5" stroke-linecap="round"/>
+
+  <!-- ─── Frame 9: DIVE-2 (fully extended) ─────────── x=576 -->
+  <rect x="576" y="0" width="64" height="64" fill="#12a090"/>
+  <circle cx="598" cy="32" r="9" fill="#fde8b0" stroke="#c8a060" stroke-width="1"/>
+  <!-- body fully horizontal -->
+  <line x1="589" y1="32" x2="626" y2="36" stroke="#444" stroke-width="3" stroke-linecap="round"/>
+  <!-- arms stretched forward -->
+  <line x1="589" y1="32" x2="578" y2="30" stroke="#1abc9c" stroke-width="3" stroke-linecap="round"/>
+  <line x1="589" y1="32" x2="580" y2="34" stroke="#1abc9c" stroke-width="2.5" stroke-linecap="round"/>
+  <!-- legs trailing back -->
+  <line x1="626" y1="36" x2="636" y2="28" stroke="#555" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="626" y1="36" x2="636" y2="40" stroke="#555" stroke-width="2.5" stroke-linecap="round"/>
+
+  <!-- ─── Frame 10: RECEIVE-1 (crouching) ──────────── x=640 -->
+  <rect x="640" y="0" width="64" height="64" fill="#1a8840"/>
+  <circle cx="670" cy="18" r="9" fill="#fde8b0" stroke="#c8a060" stroke-width="1"/>
+  <!-- crouched body -->
+  <line x1="670" y1="27" x2="670" y2="40" stroke="#444" stroke-width="3" stroke-linecap="round"/>
+  <!-- arms angled low/forward for receive -->
+  <line x1="670" y1="30" x2="658" y2="42" stroke="#2ecc71" stroke-width="3" stroke-linecap="round"/>
+  <line x1="670" y1="30" x2="682" y2="42" stroke="#2ecc71" stroke-width="2.5" stroke-linecap="round"/>
+  <!-- bent knees -->
+  <line x1="670" y1="40" x2="660" y2="52" stroke="#555" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="670" y1="40" x2="680" y2="52" stroke="#555" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="660" y1="52" x2="656" y2="60" stroke="#555" stroke-width="2" stroke-linecap="round"/>
+  <line x1="680" y1="52" x2="684" y2="60" stroke="#555" stroke-width="2" stroke-linecap="round"/>
+
+  <!-- ─── Frame 11: RECEIVE-2 (arms extended) ───────── x=704 -->
+  <rect x="704" y="0" width="64" height="64" fill="#229950"/>
+  <circle cx="734" cy="20" r="9" fill="#fde8b0" stroke="#c8a060" stroke-width="1"/>
+  <line x1="734" y1="29" x2="734" y2="42" stroke="#444" stroke-width="3" stroke-linecap="round"/>
+  <!-- arms extended, underhand -->
+  <line x1="734" y1="32" x2="720" y2="44" stroke="#2ecc71" stroke-width="3" stroke-linecap="round"/>
+  <line x1="734" y1="32" x2="748" y2="40" stroke="#2ecc71" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="734" y1="42" x2="724" y2="56" stroke="#555" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="734" y1="42" x2="744" y2="56" stroke="#555" stroke-width="2.5" stroke-linecap="round"/>
+
+  <!-- ─── Frame 12: SKILL-1 (charge) ───────────────── x=768 -->
+  <rect x="768" y="0" width="64" height="64" fill="#8800aa"/>
+  <!-- glow effect -->
+  <ellipse cx="800" cy="32" rx="28" ry="28" fill="#ff00ff" opacity="0.15"/>
+  <circle cx="800" cy="10" r="9" fill="#fde8b0" stroke="#ff80ff" stroke-width="1.5"/>
+  <line x1="800" y1="19" x2="800" y2="36" stroke="#aa00cc" stroke-width="3" stroke-linecap="round"/>
+  <!-- arms charging (pulling back) -->
+  <line x1="800" y1="22" x2="786" y2="18" stroke="#ff00ff" stroke-width="3" stroke-linecap="round"/>
+  <line x1="800" y1="22" x2="814" y2="18" stroke="#ff00ff" stroke-width="3" stroke-linecap="round"/>
+  <line x1="800" y1="36" x2="791" y2="52" stroke="#555" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="800" y1="36" x2="809" y2="52" stroke="#555" stroke-width="2.5" stroke-linecap="round"/>
+
+  <!-- ─── Frame 13: SKILL-2 (peak) ─────────────────── x=832 -->
+  <rect x="832" y="0" width="64" height="64" fill="#aa00cc"/>
+  <ellipse cx="864" cy="32" rx="30" ry="30" fill="#ff00ff" opacity="0.25"/>
+  <circle cx="864" cy="8" r="9" fill="#fde8b0" stroke="#ff80ff" stroke-width="2"/>
+  <line x1="864" y1="17" x2="864" y2="34" stroke="#cc00ee" stroke-width="3" stroke-linecap="round"/>
+  <!-- arms fully extended in aura -->
+  <line x1="864" y1="20" x2="846" y2="12" stroke="#ff00ff" stroke-width="3.5" stroke-linecap="round"/>
+  <line x1="864" y1="20" x2="882" y2="12" stroke="#ff00ff" stroke-width="3.5" stroke-linecap="round"/>
+  <!-- effect sparks -->
+  <line x1="850" y1="6" x2="844" y2="2" stroke="#ffaaff" stroke-width="1.5"/>
+  <line x1="878" y1="6" x2="884" y2="2" stroke="#ffaaff" stroke-width="1.5"/>
+  <line x1="864" y1="4" x2="864" y2="0" stroke="#ffaaff" stroke-width="1.5"/>
+  <line x1="864" y1="34" x2="854" y2="50" stroke="#555" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="864" y1="34" x2="874" y2="50" stroke="#555" stroke-width="2.5" stroke-linecap="round"/>
+
+  <!-- ─── Frame 14: SKILL-3 (release) ──────────────── x=896 -->
+  <rect x="896" y="0" width="64" height="64" fill="#cc22ee"/>
+  <ellipse cx="928" cy="32" rx="26" ry="26" fill="#ff88ff" opacity="0.20"/>
+  <circle cx="928" cy="10" r="9" fill="#fde8b0" stroke="#ff80ff" stroke-width="1.5"/>
+  <line x1="928" y1="19" x2="928" y2="36" stroke="#bb00dd" stroke-width="3" stroke-linecap="round"/>
+  <!-- arms forward/out releasing energy -->
+  <line x1="928" y1="22" x2="912" y2="28" stroke="#ff88ff" stroke-width="3" stroke-linecap="round"/>
+  <line x1="928" y1="22" x2="944" y2="28" stroke="#ff88ff" stroke-width="3" stroke-linecap="round"/>
+  <!-- release burst -->
+  <line x1="908" y1="28" x2="900" y2="26" stroke="#ffccff" stroke-width="1.5"/>
+  <line x1="948" y1="28" x2="956" y2="26" stroke="#ffccff" stroke-width="1.5"/>
+  <line x1="928" y1="36" x2="918" y2="52" stroke="#555" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="928" y1="36" x2="938" y2="52" stroke="#555" stroke-width="2.5" stroke-linecap="round"/>
+</svg>

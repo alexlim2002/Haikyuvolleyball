@@ -4,6 +4,7 @@ import { initAssetStore } from "./AssetStore.js";
 import { initInputSystem } from "./InputSystem.js";
 import { StateSystem } from "./StateSystem.js";
 import { EntityManager } from "./EntityManager.js";
+import { GameLoop } from "./GameLoop.js";
 
 const TPS = 60;
 const TICK_MS = 1000 / TPS;
@@ -84,6 +85,7 @@ class Game {
   #inputsOfThisTick;
   #entityManager = null;
   #stateSystem = null;
+  #gameLoop = null;
   #inputGen = null;
   #rafId = null;
   #lastTick = 0;
@@ -94,10 +96,12 @@ class Game {
     this.#inputsOfThisTick = inputsOfThisTick;
   }
 
-  start(match, logic) {
+  start({ physicsMap, initEntities, handlers }) {
     this.#effector.init();
     this.#entityManager = new EntityManager();
-    this.#stateSystem = new StateSystem(match, this.#entityManager, logic);
+    const initialState = initEntities(this.#entityManager);
+    this.#stateSystem = new StateSystem(initialState);
+    this.#gameLoop = new GameLoop({ entityManager: this.#entityManager, physicsMap, handlers });
     this.#inputGen = this.#inputsOfThisTick();
     this.#lastTick = performance.now();
     this.#rafId = requestAnimationFrame(this.#rafLoop);
@@ -111,6 +115,7 @@ class Game {
     }
     this.#entityManager = null;
     this.#stateSystem = null;
+    this.#gameLoop = null;
     this.#inputGen = null;
     return this;
   }
@@ -124,7 +129,8 @@ class Game {
     if (timestamp - this.#lastTick >= TICK_MS) {
       this.#lastTick = timestamp;
       const { value: inputs } = await this.#inputGen.next();
-      const { toPlay } = this.#stateSystem.tick(inputs);
+      const { nextState, toPlay } = this.#gameLoop.tick(this.#stateSystem.buf, inputs);
+      this.#stateSystem.setState(nextState);
       this.#effector.play(toPlay);
     }
 
