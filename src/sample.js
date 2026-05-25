@@ -54,13 +54,22 @@ async function main() {
   const stateSystem   = new StateSystem(initialState);
   const gameLoop      = new GameLoop({ entityManager, physicsMap, handlers });
 
-  function rafLoop() {
-    const state = stateSystem.buf;
-    if (state.phase !== 'gameover') {
-      const { value: inputs } = inputGen.next();
-      const { nextState, toPlay } = gameLoop.tick(state, inputs);
-      stateSystem.setState(nextState);
-      effector.play(toPlay);
+  let lastTime   = performance.now();
+  let accumulator = 0;
+
+  function rafLoop(timestamp) {
+    accumulator += Math.min(timestamp - lastTime, 50);
+    lastTime = timestamp;
+
+    while (accumulator >= TICK_MS) {
+      accumulator -= TICK_MS;
+      const state = stateSystem.buf;
+      if (state.phase !== 'gameover') {
+        const { value: inputs } = inputGen.next();
+        const { nextState, toPlay } = gameLoop.tick(state, inputs);
+        stateSystem.setState(nextState);
+        effector.play(toPlay);
+      }
     }
 
     renderer.clear();
