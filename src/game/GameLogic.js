@@ -18,6 +18,14 @@ const DIVE_VX   = 18  / LW;
 const DIVE_VY   = 3   / LW;
 const BLOCK_VY  = 9.1 / LW;
 
+const TOSS_VY            = 12  / LW;
+const SERVE_TOSS_EXTRA_G = 0.2 / LW;  // 토스 중 추가 중력 (체공시간 단축)
+const SERVE_BALL_OFFSET  = 30  / LW;  // 공이 서버 앞쪽에 위치하는 거리
+const SERVE_SPEED_MIN = 10 / LW;
+const SERVE_SPEED_MAX = 18 / LW;
+const SERVE_X_LEFT  = 0.08;
+const SERVE_X_RIGHT = 0.92;
+
 const P_GRAVITY      = 0.5  / LW;
 const APEX_THRESHOLD = 2    / LW;
 const BALL_GRAVITY = 0.05 / LW;
@@ -39,7 +47,8 @@ const PLAYER_SPRITES = {
   RUN:     { right: { start: 2,  count: 2 }, left: { start: 4,  count: 2 } },
   JUMP:    { right: { start: 6,  count: 1 }, left: { start: 7,  count: 1 } },
   BLOCK:   { right: { start: 8,  count: 1 }, left: { start: 9,  count: 1 } },
-  SERVE:   { right: { start: 10, count: 2 }, left: { start: 12, count: 2 } },
+  SERVE:     { right: { start: 10, count: 1 }, left: { start: 12, count: 1 } },
+  SERVE_HIT: { right: { start: 11, count: 1 }, left: { start: 13, count: 1 } },
   RECEIVE: { right: { start: 14, count: 1 }, left: { start: 15, count: 1 } },
   SPIKE:   { right: { start: 16, count: 2 }, left: { start: 18, count: 2 } },
   DIVE:    { right: { start: 20, count: 1 }, left: { start: 21, count: 1 } },
@@ -56,14 +65,16 @@ function makePlayerActions() {
     DIVE:    { duration: 35, sprites: PLAYER_SPRITES.DIVE,    getHitbox: playerHitboxes.DIVE    },
     RECEIVE: { duration: 15, sprites: PLAYER_SPRITES.RECEIVE, getHitbox: playerHitboxes.RECEIVE, actionRange: { ox: 0, oy: 0.03, r: RECEIVE_R } },
     SKILL:   { duration: 30, sprites: PLAYER_SPRITES.SKILL,   getHitbox: playerHitboxes.SKILL   },
+    SERVE:     { duration: 0, sprites: PLAYER_SPRITES.SERVE,     getHitbox: playerHitboxes.IDLE },
+    SERVE_HIT: { duration: 8, sprites: PLAYER_SPRITES.SERVE_HIT, getHitbox: playerHitboxes.IDLE },
   };
 }
 
 // ─── 물리맵 ───────────────────────────────────────────────────────────────────
-export const physicsMap = new PhysicsMap(1, 0.5625 * 1.5);
+export const physicsMap = new PhysicsMap(1, 0.5625);
 
 // ─── 엔티티 등록 + 초기 상태 반환 ────────────────────────────────────────────
-export function initEntities(entityManager) {
+export function initEntities(entityManager, p1Char, p2Char) {
   entityManager.register('court', {
     type:    'bg',
     role:    'bg',
@@ -99,24 +110,26 @@ export function initEntities(entityManager) {
     type:       'entity',
     role:       'player',
     playerSide: 'left',
-    assetId:    'player',
+    assetId:    p1Char?.id ?? 'hinata',
     origin:     'bottom-center',
     size:       P_SIZE,
     physics:    { gravity: P_GRAVITY, restitution: 0, apexThreshold: APEX_THRESHOLD },
     armLength:  ARM_LEN,
     actions:    makePlayerActions(),
+    serveTypes: p1Char?.serveTypes ?? ['UNDERHAND'],
   });
 
   entityManager.register('player2', {
     type:       'entity',
     role:       'player',
     playerSide: 'right',
-    assetId:    'player',
+    assetId:    p2Char?.id ?? 'hinata',
     origin:     'bottom-center',
     size:       P_SIZE,
     physics:    { gravity: P_GRAVITY, restitution: 0, apexThreshold: APEX_THRESHOLD },
     armLength:  ARM_LEN,
     actions:    makePlayerActions(),
+    serveTypes: p2Char?.serveTypes ?? ['UNDERHAND'],
   });
 
   entityManager.register('ball', {
@@ -135,22 +148,85 @@ export function initEntities(entityManager) {
     },
   });
 
-  return makeInitialState(true);
+  return makeInitialState(true, null, null);
 }
 
-function makeInitialState(serveLeft) {
+function makeInitialState(serveLeft, score, sets) {
+  const serverSide = serveLeft ? 'left' : 'right';
+  const server     = serveLeft ? 'player1' : 'player2';
+  const sx         = serveLeft ? SERVE_X_LEFT : SERVE_X_RIGHT;
   return {
     court:   { x: 0.5,  y: 0 },
     net:     { x: 0.5,  y: 0, vx: 0, vy: 0 },
-    player1: { x: 0.25, y: 0, vx: 0, vy: 0, facing:  1, onGround: true, actionType: 'IDLE', actionTick: 0, actionDuration: 0 },
-    player2: { x: 0.75, y: 0, vx: 0, vy: 0, facing: -1, onGround: true, actionType: 'IDLE', actionTick: 0, actionDuration: 0 },
-    ball:    { x: serveLeft ? 0.25 : 0.75, y: 0.375, vx: serveLeft ? 0.0025 : -0.0025, vy: -0.00125, actionRangeCooldown: 0 },
-    phase:      'rally',
-    score:      { p1: 0, p2: 0 },
-    sets:       { p1: 0, p2: 0 },
-    lastScorer: 'p1',
+    player1: { x: serveLeft ? sx : 0.25, y: 0, vx: 0, vy: 0, facing:  1, onGround: true, actionType: 'IDLE', actionTick: 0, actionDuration: 0, prevAction: false, noBallCollide: serveLeft,  serveBuffer: 0 },
+    player2: { x: serveLeft ? 0.75 : sx, y: 0, vx: 0, vy: 0, facing: -1, onGround: true, actionType: 'IDLE', actionTick: 0, actionDuration: 0, prevAction: false, noBallCollide: !serveLeft, serveBuffer: 0 },
+    ball:    { x: sx + (serveLeft ? 1 : -1) * SERVE_BALL_OFFSET, y: P_SIZE.h, vx: 0, vy: 0, actionRangeCooldown: 0 },
+    phase:      'serve',
+    serveStep:  'ready',   // 'ready' → 'tossed'
+    server,
+    serverSide,
+    serveTossY: 0,
+    score:      score ?? { p1: 0, p2: 0 },
+    sets:       sets  ?? { p1: 0, p2: 0 },
+    lastScorer: serveLeft ? 'p1' : 'p2',
     pointTimer: 0,
   };
+}
+
+// ─── 서브 실행 ───────────────────────────────────────────────────────────────
+function executeServe(state, entity) {
+  const bs = state.ball;
+  const ps = state[state.server];
+  if (!bs || !ps) return false;
+
+  const facingX    = state.serverSide === 'left' ? 1 : -1;
+  const dx         = (bs.x - ps.x) * facingX;
+  const headY      = ps.y + P_SIZE.h;
+  const isAir      = !ps.onGround;
+  const isOverhand = bs.y >= headY;
+  const types      = entity?.serveTypes ?? ['OVERHAND', 'UNDERHAND'];
+
+  // 공통 x 범위: 앞쪽 팔길이 이내
+  if (dx <= 0 || dx > ARM_LEN) return false;
+
+  let serveType;
+  if (isAir) {
+    if (!isOverhand || bs.y > headY + ARM_LEN) return false;
+    if (!types.includes('JUMP')) return false;
+    serveType = 'JUMP';
+  } else if (isOverhand) {
+    if (bs.y > headY + ARM_LEN) return false;
+    if (!types.includes('OVERHAND')) return false;
+    serveType = 'OVERHAND';
+  } else {
+    if (bs.y < ps.y) return false;
+    if (!types.includes('UNDERHAND')) return false;
+    serveType = 'UNDERHAND';
+  }
+
+  const ratio = Math.min(1, Math.max(0, bs.y / (state.serveTossY || 0.001)));
+  const speed = SERVE_SPEED_MIN + (SERVE_SPEED_MAX - SERVE_SPEED_MIN) * ratio;
+
+  let vx, vy;
+  if (serveType === 'JUMP') {
+    vx = facingX * speed * 0.97;
+    vy = -speed * 0.2;
+  } else if (serveType === 'OVERHAND') {
+    vx = facingX * speed * 0.92;
+    vy = speed * 0.4;    // 위로
+  } else {
+    // 낮게 칠수록 30°, 높게 칠수록 80°
+    const heightRatio = Math.min(1, Math.max(0, bs.y / headY));
+    const angleRad = (30 + heightRatio * 50) * Math.PI / 180;
+    vx = facingX * speed * Math.cos(angleRad);
+    vy = speed * Math.sin(angleRad);
+  }
+
+  bs.vx = vx;
+  bs.vy = vy;
+  state[state.server].noBallCollide = false;
+  state.phase = 'rally';
+  return true;
 }
 
 // ─── 핸들러 ───────────────────────────────────────────────────────────────────
@@ -170,6 +246,53 @@ export const handlers = {
     const DR = !!inputs[`${pfx}DOUBLE_RIGHT`];
     const DU = !!inputs[`${pfx}DOUBLE_UP`];
     const DD = !!inputs[`${pfx}DOUBLE_DOWN`];
+
+    // ── 서브 페이즈 처리 ────────────────────────────────────────────────────
+    if (state.phase === 'serve' && state.server === entityId) {
+      // 서브 플레이어는 맵 끝에 고정, 이동 불가
+      es.vx = 0;
+      const justPressed = A && !es.prevAction;
+      es.prevAction = A;
+      if (justPressed) {
+        if (state.serveStep === 'ready') {
+          // 1차: 공 토스 → SERVE 프레임1로 전환
+          const bs = state.ball;
+          if (bs) {
+            bs.vx = 0;
+            bs.vy = TOSS_VY;
+            state.serveTossY = bs.y + (TOSS_VY * TOSS_VY) / (2 * (BALL_GRAVITY + SERVE_TOSS_EXTRA_G));
+          }
+          state.serveStep = 'tossed';
+          es.serveBuffer = 0;
+          return { action: 'SERVE', dvx: 0, dvy: 0 };
+        } else if (state.serveStep === 'tossed') {
+          if (executeServe(state, entity)) {
+            es.serveBuffer = 0;
+            return { action: 'SERVE_HIT', dvx: 0, dvy: 0 };
+          }
+          // 범위 밖이면 20틱 버퍼 — 공이 범위에 들어올 때 자동 실행
+          es.serveBuffer = 20;
+        }
+      }
+
+      // 버퍼 처리: 이전에 눌렀는데 범위 밖이었던 경우 매 틱 재시도
+      if (es.serveBuffer > 0 && state.serveStep === 'tossed') {
+        es.serveBuffer--;
+        if (executeServe(state, entity)) {
+          es.serveBuffer = 0;
+          return { action: 'SERVE_HIT', dvx: 0, dvy: 0 };
+        }
+      }
+
+      // 점프서브 가능 캐릭터: tossed 중 점프 허용
+      if (state.serveStep === 'tossed' && entity.serveTypes?.includes('JUMP')) {
+        if (U && es.onGround)                             return { action: 'JUMP', dvx: 0, dvy: JUMP_VY };
+        if (es.onGround && es.actionType === 'JUMP')      { es.vx = 0; return { action: 'SERVE', dvx: 0, dvy: 0 }; }
+        if (!es.onGround)                                 return null;  // 공중: JUMP 유지
+      }
+
+      return es.actionType === 'SERVE' ? null : { action: 'SERVE', dvx: 0, dvy: 0 };
+    }
 
     const locked = es.actionDuration > 0 && es.actionTick < es.actionDuration;
 
@@ -218,6 +341,17 @@ export const handlers = {
   },
 
   onBallHitFloor(state, side) {
+    if (state.phase === 'serve') {
+      // 서브 도중 공이 떨어지면 폴트 → 상대방 득점
+      if (window.noScore) return;
+      const scorer = state.serverSide === 'left' ? 'p2' : 'p1';
+      state.score[scorer]++;
+      state.lastScorer = scorer;
+      state.phase      = 'point';
+      state.pointTimer = POINT_PAUSE_TICKS;
+      if (state.ball) { state.ball.vx = 0; state.ball.vy = 0; }
+      return;
+    }
     if (state.phase !== 'rally') return;
     if (window.noScore) return;
     const scorer = side === 'left' ? 'p2' : 'p1';
@@ -272,22 +406,43 @@ export const handlers = {
 
 // ─── 게임 규칙 틱 (GameLoop 외부에서 호출) ───────────────────────────────────
 export function tickGameRule(state) {
+  if (state.phase === 'serve') {
+    if (state.serveStep === 'ready') {
+      // 공을 서버 앞쪽에 고정
+      const ps = state[state.server];
+      if (ps && state.ball) {
+        const facingX = state.serverSide === 'left' ? 1 : -1;
+        state.ball.x  = ps.x + facingX * SERVE_BALL_OFFSET;
+        state.ball.y  = P_SIZE.h;
+        state.ball.vx = 0;
+        state.ball.vy = 0;
+      }
+    } else if (state.serveStep === 'tossed' && state.ball) {
+      // 토스 체공시간 단축을 위한 추가 중력
+      state.ball.vy -= SERVE_TOSS_EXTRA_G;
+    }
+    return;
+  }
+
   if (state.phase !== 'point') return;
 
   state.pointTimer--;
   if (state.pointTimer > 0) return;
 
-  if (state.score.p1 >= WIN_SCORE || state.score.p2 >= WIN_SCORE) {
-    const setWinner = state.score.p1 > state.score.p2 ? 'p1' : 'p2';
-    state.sets[setWinner]++;
-    if (state.sets.p1 >= WIN_SETS || state.sets.p2 >= WIN_SETS) {
+  // 세트 종료 판단
+  let newScore = { ...state.score };
+  let newSets  = { ...state.sets };
+
+  if (newScore.p1 >= WIN_SCORE || newScore.p2 >= WIN_SCORE) {
+    const setWinner = newScore.p1 > newScore.p2 ? 'p1' : 'p2';
+    newSets[setWinner]++;
+    if (newSets.p1 >= WIN_SETS || newSets.p2 >= WIN_SETS) {
       state.phase = 'gameover';
       return;
     }
-    state.score = { p1: 0, p2: 0 };
+    newScore = { p1: 0, p2: 0 };
   }
 
-  const fresh = makeInitialState(state.lastScorer === 'p2');
+  const fresh = makeInitialState(state.lastScorer === 'p1', newScore, newSets);
   Object.assign(state, fresh);
-  state.phase = 'rally';
 }

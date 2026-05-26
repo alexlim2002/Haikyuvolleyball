@@ -3,6 +3,8 @@
  * generateAssets() → AssetStore와 동일한 구조의 assets 객체 반환
  */
 
+import { CHARACTERS } from './Characters.js';
+
 async function bmp(canvas) {
   return createImageBitmap(canvas);
 }
@@ -253,27 +255,44 @@ function drawDive(ctx, cx, i) {
 }
 
 // ─── PNG 스프라이트 시트 → 1D 프레임 배열 ────────────────────────────────────
-async function loadImageFrames(src, cols) {
-  const blob = await fetch(src).then(r => r.blob());
-  const img  = await createImageBitmap(blob);
-  const size = Math.floor(img.width / cols);
-  const rows = Math.floor(img.height / size);
-  const out  = [];
-  for (let row = 0; row < rows; row++) {
-    for (let col = 0; col < cols; col++) {
-      out.push({ image: img, sx: col * size, sy: row * size, sw: size, sh: size });
+async function loadImageFrames(src, frameSize) {
+  try {
+    const res = await fetch(src);
+    if (!res.ok) { console.warn(`[SpriteGen] ${src} — HTTP ${res.status}`); return []; }
+    const img  = await createImageBitmap(await res.blob());
+    const cols = Math.floor(img.width  / frameSize);
+    const rows = Math.floor(img.height / frameSize);
+    const out  = [];
+    for (let row = 0; row < rows; row++) {
+      for (let col = 0; col < cols; col++) {
+        out.push({ image: img, sx: col * frameSize, sy: row * frameSize, sw: frameSize, sh: frameSize });
+      }
     }
+    return out;
+  } catch (e) {
+    console.warn(`[SpriteGen] ${src} 로드 실패:`, e);
+    return [];
   }
-  return out;
 }
 
 // ─── 공개 API ─────────────────────────────────────────────────────────────────
 export async function generateAssets() {
-  const [court, net, ball, player] = await Promise.all([
+  const [court, net, ball] = await Promise.all([
     genCourt(),
     genNet(),
     genBall(),
-    loadImageFrames('../asset/character/히나타쇼요.png', 8),
   ]);
-  return { court, net, ball, player };
+
+  const charEntries = await Promise.all(
+    CHARACTERS.map(async char => {
+      const frames = await loadImageFrames(`../asset/character/${char.file}`, 127);
+      return [char.id, frames];
+    })
+  );
+
+  const assets = { court, net, ball };
+  for (const [id, frames] of charEntries) {
+    assets[id] = frames;
+  }
+  return assets;
 }

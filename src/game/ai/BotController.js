@@ -35,6 +35,8 @@ export function createBotController(config = {}) {
   let spikeCooldown = 0;
   let receiveCooldown = 0;
   let blockCooldown = 0;
+  let serveActionCooldown = 0;
+  let serveJumpCooldown = 0;
 
   function beginNewRally(rallyKey) {
     if (currentRallyKey === rallyKey) return;
@@ -46,6 +48,8 @@ export function createBotController(config = {}) {
     spikeCooldown = 0;
     receiveCooldown = 0;
     blockCooldown = 0;
+    serveActionCooldown = 0;
+    serveJumpCooldown = 0;
   }
 
   function makeInputs(state) {
@@ -55,6 +59,11 @@ export function createBotController(config = {}) {
     const inputs = makeEmptyInputs(cfg.playerSide);
     const context = readContext(state, cfg);
     if (!context) return inputs;
+
+    if (isMyServe(state, cfg)) {
+      playServe(inputs, context);
+      return inputs;
+    }
 
     const targetX = chooseTargetX(currentType, context);
     moveToTarget(inputs, context, targetX);
@@ -77,6 +86,8 @@ export function createBotController(config = {}) {
     if (spikeCooldown > 0) spikeCooldown--;
     if (receiveCooldown > 0) receiveCooldown--;
     if (blockCooldown > 0) blockCooldown--;
+    if (serveActionCooldown > 0) serveActionCooldown--;
+    if (serveJumpCooldown > 0) serveJumpCooldown--;
   }
 
   function chooseAction(inputs, botType, context) {
@@ -109,6 +120,61 @@ export function createBotController(config = {}) {
     }
 
     playRally(inputs, context, { inMyCourt, comingToMe, closeHorizontally, reachable, lowBall, highBall, fallingBall });
+  }
+
+
+  function playServe(inputs, context) {
+    const { state, player, ball, playerSide, cfg } = context;
+    const actionKey = inputName(playerSide, "ACTION");
+    const upKey = inputName(playerSide, "UP");
+
+    if (state.serveStep === "ready") {
+      tapAction(inputs, actionKey, 10);
+      return;
+    }
+
+    if (state.serveStep !== "tossed") return;
+
+    const serveTypes = cfg.serveTypes ?? ["OVERHAND", "UNDERHAND"];
+    const headY = player.y + (cfg.playerHeight ?? 80 / 800);
+    const armLen = cfg.armLength ?? 35 / 800;
+    const facingX = playerSide === "left" ? 1 : -1;
+    const dx = (ball.x - player.x) * facingX;
+    const inFrontReach = dx > 0 && dx <= armLen * 1.05;
+    if (!inFrontReach) return;
+
+    const canOverhand = serveTypes.includes("OVERHAND");
+    const canUnderhand = serveTypes.includes("UNDERHAND");
+    const canJump = serveTypes.includes("JUMP");
+    const inOverhandHeight = ball.y >= headY && ball.y <= headY + armLen;
+    const inUnderhandHeight = ball.y >= player.y + 0.015 && ball.y < headY;
+
+    if (canOverhand && inOverhandHeight) {
+      tapAction(inputs, actionKey, 14);
+      return;
+    }
+
+    if (!canOverhand && canUnderhand && inUnderhandHeight) {
+      tapAction(inputs, actionKey, 14);
+      return;
+    }
+
+    if (!canOverhand && !canUnderhand && canJump) {
+      if (player.onGround && ball.y > headY + armLen * 0.35 && serveJumpCooldown === 0) {
+        inputs[upKey] = true;
+        serveJumpCooldown = 18;
+        return;
+      }
+      if (!player.onGround && inOverhandHeight) {
+        tapAction(inputs, actionKey, 14);
+      }
+    }
+  }
+
+  function tapAction(inputs, actionKey, cooldownTicks) {
+    if (serveActionCooldown > 0) return;
+    inputs[actionKey] = true;
+    serveActionCooldown = cooldownTicks;
   }
 
   function playAttack(inputs, context, info) {
@@ -184,6 +250,11 @@ export function createBotController(config = {}) {
     getCurrentTypeLabel,
     getCurrentTypeId,
   };
+}
+
+
+function isMyServe(state, cfg) {
+  return state.phase === "serve" && state.server === cfg.playerId;
 }
 
 function readContext(state, cfg) {
