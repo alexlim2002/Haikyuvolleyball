@@ -12,7 +12,36 @@ export function drawPauseOverlay(ctx, W, H) {
   ctx.fillText('Enter — 타이틀로', W / 2, H / 2 + 50);
 }
 
-export function drawHUD(ctx, state, W, H, botController) {
+function drawStaminaBar(ctx, stamina, maxStamina, x, y, w, h) {
+  const ratio = maxStamina > 0 ? Math.max(0, stamina / maxStamina) : 0;
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
+  ctx.fillRect(x, y, w, h);
+  const color = ratio > 0.5 ? '#44dd44' : ratio > 0.25 ? '#dddd22' : '#dd4444';
+  ctx.fillStyle = color;
+  ctx.fillRect(x, y, w * ratio, h);
+}
+
+export function drawHUD(ctx, state, W, H, botController, entityManager) {
+  // 스태미나 바 (캐릭터 위)
+  if (state.player1 && entityManager) {
+    const p1 = state.player1;
+    const e1 = entityManager.get('player1');
+    if (e1?.maxStamina) {
+      const sx = (p1.x / 1) * W;
+      const sy = H - (p1.y / 0.5625) * H - (e1.size.h / 0.5625) * H - 8;
+      drawStaminaBar(ctx, p1.stamina, e1.maxStamina, sx - 24, sy, 48, 5);
+    }
+  }
+  if (state.player2 && entityManager) {
+    const p2 = state.player2;
+    const e2 = entityManager.get('player2');
+    if (e2?.maxStamina) {
+      const sx = (p2.x / 1) * W;
+      const sy = H - (p2.y / 0.5625) * H - (e2.size.h / 0.5625) * H - 8;
+      drawStaminaBar(ctx, p2.stamina, e2.maxStamina, sx - 24, sy, 48, 5);
+    }
+  }
+
   // 점수판
   ctx.fillStyle    = 'rgba(0,0,0,0.45)';
   ctx.fillRect(W / 2 - 80, 4, 160, 46);

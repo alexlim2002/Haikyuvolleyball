@@ -35,50 +35,76 @@ export class TitleScreen {
   }
 
   draw(ctx) {
-    // 배경
-    const bg = ctx.createLinearGradient(0, 0, 0, LH);
-    bg.addColorStop(0, '#0d1b2a');
-    bg.addColorStop(1, '#1a3a5c');
-    ctx.fillStyle = bg;
+    // 체육관 벽 (상단 배경)
+    const wallGrad = ctx.createLinearGradient(0, 0, 0, LH * 0.7);
+    wallGrad.addColorStop(0, '#0e1b3a');
+    wallGrad.addColorStop(1, '#1e3560');
+    ctx.fillStyle = wallGrad;
     ctx.fillRect(0, 0, LW, LH);
 
-    // 로고 플레이스홀더
-    ctx.fillStyle = '#1e3a5a';
-    ctx.strokeStyle = '#4488bb';
+    // 체육관 마루 (하단)
+    const floorY = Math.round(LH * 0.68);
+    ctx.fillStyle = '#7c4e14';
+    ctx.fillRect(0, floorY, LW, LH - floorY);
+    ctx.lineWidth = 1;
+    for (let fy = floorY + 6; fy < LH; fy += 9) {
+      ctx.strokeStyle = 'rgba(0,0,0,0.18)';
+      ctx.beginPath(); ctx.moveTo(0, fy); ctx.lineTo(LW, fy); ctx.stroke();
+    }
+    ctx.strokeStyle = 'rgba(255,255,255,0.5)';
     ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.roundRect(LW / 2 - 200, 60, 400, 120, 12);
-    ctx.fill();
-    ctx.stroke();
-    ctx.fillStyle = 'rgba(255,255,255,0.25)';
-    ctx.font = 'bold 16px monospace';
+    ctx.beginPath(); ctx.moveTo(0, floorY + 1); ctx.lineTo(LW, floorY + 1); ctx.stroke();
+
+    // 포인트 스트라이프
+    ctx.fillStyle = '#e85c00';
+    ctx.fillRect(0, floorY - 14, LW, 9);
+    ctx.fillStyle = '#f5c000';
+    ctx.fillRect(0, floorY - 5, LW, 5);
+
+    // 스포트라이트
+    const spot = ctx.createRadialGradient(LW * 0.5, -20, 0, LW * 0.5, -20, LW * 0.75);
+    spot.addColorStop(0, 'rgba(255,240,180,0.18)');
+    spot.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = spot;
+    ctx.fillRect(0, 0, LW, LH);
+
+    // 좌우 포인트 기둥
+    ctx.fillStyle = 'rgba(255,120,0,0.2)';
+    ctx.fillRect(0, 0, 14, floorY);
+    ctx.fillRect(LW - 14, 0, 14, floorY);
+
+    // 게임 타이틀
+    ctx.fillStyle = '#ffdd33';
+    ctx.font = 'bold 52px monospace';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('LOGO PLACEHOLDER', LW / 2, 120);
+    ctx.fillText('HAIKYUU', LW / 2, 105);
+    ctx.fillStyle = '#ff8c00';
+    ctx.font = 'bold 20px monospace';
+    ctx.fillText('VOLLEYBALL', LW / 2, 152);
 
     // 메뉴 항목
     const ITEMS = ['싱글 플레이  (vs AI)', '멀티 플레이  (2P)'];
-    const ITEM_Y = [270, 330];
+    const ITEM_Y = [255, 315];
 
     for (let i = 0; i < ITEMS.length; i++) {
       const selected = i === this.#selectedIdx;
 
-      // 선택 배경
       if (selected) {
-        ctx.fillStyle = 'rgba(68,136,255,0.25)';
+        ctx.fillStyle = 'rgba(255,140,0,0.22)';
         ctx.beginPath();
-        ctx.roundRect(LW / 2 - 160, ITEM_Y[i] - 22, 320, 44, 8);
+        ctx.roundRect(LW / 2 - 170, ITEM_Y[i] - 22, 340, 44, 8);
         ctx.fill();
-        ctx.strokeStyle = '#4488ff';
+        ctx.strokeStyle = '#ff8c00';
         ctx.lineWidth = 2;
         ctx.stroke();
       }
 
-      ctx.fillStyle = selected ? '#ffffff' : 'rgba(255,255,255,0.45)';
+      ctx.fillStyle = selected ? '#ffdd33' : 'rgba(255,255,255,0.5)';
       ctx.font = selected ? 'bold 22px monospace' : '22px monospace';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(ITEMS[i], LW / 2, ITEM_Y[i]);
+      ctx.fillText((selected ? '▶  ' : '    ') + ITEMS[i], LW / 2, ITEM_Y[i]);
     }
 
     // 조작 안내

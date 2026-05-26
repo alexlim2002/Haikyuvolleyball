@@ -86,6 +86,7 @@ async function main() {
       playerId: 'player2', playerSide: 'right',
       opponentId: 'player1', mapWidth: physicsMap.w,
       serveTypes: p2Char?.serveTypes ?? ['OVERHAND', 'UNDERHAND'],
+      forcedType: p2Char?.aiType ?? null,
     }) : null;
     paused         = false;
     prevShiftPause = false;
@@ -134,7 +135,7 @@ async function main() {
     } else {
       renderer.draw(stateSystem.buf, entityManager);
       if (window.showHitboxes) drawHitboxes(ctx, stateSystem.buf, entityManager);
-      drawHUD(ctx, stateSystem.buf, renderer.width, renderer.height, botController);
+      drawHUD(ctx, stateSystem.buf, renderer.width, renderer.height, botController, entityManager);
       if (paused) drawPauseOverlay(ctx, renderer.width, renderer.height);
     }
 

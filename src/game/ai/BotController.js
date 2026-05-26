@@ -28,7 +28,7 @@ const DEFAULTS = {
 export function createBotController(config = {}) {
   const cfg = { ...DEFAULTS, ...config };
 
-  let currentType = chooseRandomType();
+  let currentType = cfg.forcedType ?? chooseRandomType();
   let currentRallyKey = "";
   let diveCooldown = 0;
   let jumpCooldown = 0;
@@ -42,7 +42,7 @@ export function createBotController(config = {}) {
     if (currentRallyKey === rallyKey) return;
 
     currentRallyKey = rallyKey;
-    currentType = chooseRandomType();
+    currentType = cfg.forcedType ?? chooseRandomType();
     diveCooldown = 0;
     jumpCooldown = 0;
     spikeCooldown = 0;

@@ -7,12 +7,20 @@
  */
 
 import { PhysicsMap } from "../engine/Physics.js";
-import { playerHitboxes } from "./Hitbox.js";
+import { makePlayerHitboxes } from "./Hitbox.js";
+import { TIER } from "./Characters.js";
 
 // ─── 물리 상수 (1 unit = 800px) ───────────────────────────────────────────────
 const LW = 800; // LOGICAL_WIDTH
 
-const P_SPEED = 5 / LW;
+// 스태미나 드레인 (틱당)
+const DRAIN_MOVE    = 0.03;
+const DRAIN_JUMP    = 3;
+const DRAIN_SPIKE   = 5;
+const DRAIN_BLOCK   = 5;
+const DRAIN_DIVE    = 4;
+const DRAIN_RECEIVE = 1;
+const RECOVER_IDLE  = 0.04; // 가만히 있을 때 틱당 회복
 const JUMP_VY = 13 / LW;
 const DIVE_VX = 18 / LW;
 const DIVE_VY = 3 / LW;
@@ -54,63 +62,43 @@ const PLAYER_SPRITES = {
   DIVE: { right: { start: 20, count: 1 }, left: { start: 21, count: 1 } },
 };
 
-function makePlayerActions() {
-  return {
-    IDLE: {
-      duration: 0,
-      sprites: PLAYER_SPRITES.IDLE,
-      getHitbox: playerHitboxes.IDLE,
-    },
-    RUN: {
-      duration: 0,
-      sprites: PLAYER_SPRITES.RUN,
-      frameMs: 150,
-      getHitbox: playerHitboxes.RUN,
-    },
-    JUMP: {
-      duration: 0,
-      sprites: PLAYER_SPRITES.JUMP,
-      getHitbox: playerHitboxes.JUMP,
-    },
-    SPIKE: {
-      duration: 10,
-      sprites: PLAYER_SPRITES.SPIKE,
-      getHitbox: playerHitboxes.SPIKE,
-    },
-    BLOCK: {
-      duration: 50,
-      sprites: PLAYER_SPRITES.BLOCK,
-      getHitbox: playerHitboxes.BLOCK,
-    },
-    DIVE: {
-      duration: 35,
-      sprites: PLAYER_SPRITES.DIVE,
-      getHitbox: playerHitboxes.DIVE,
-    },
-    RECEIVE: {
-      duration: 15,
-      sprites: PLAYER_SPRITES.RECEIVE,
-      getHitbox: playerHitboxes.RECEIVE,
-      actionRange: { ox: 0, oy: 0.03, r: RECEIVE_R },
-    },
-    SERVE: {
-      duration: 0,
-      sprites: PLAYER_SPRITES.SERVE,
-      getHitbox: playerHitboxes.IDLE,
-    },
-    SERVE_HIT: {
-      duration: 8,
-      sprites: PLAYER_SPRITES.SERVE_HIT,
-      getHitbox: playerHitboxes.IDLE,
-    },
-  };
-}
 
 // ─── 물리맵 ───────────────────────────────────────────────────────────────────
 export const physicsMap = new PhysicsMap(1, 0.5625);
 
+// ─── 캐릭터 스탯 → 엔티티 수치 변환 ─────────────────────────────────────────
+function resolveCharStats(char) {
+  const s = char?.stats ?? {};
+  const physMult = TIER.physique[s.physique ?? '중'];
+  return {
+    size:        { w: P_SIZE.w * physMult, h: P_SIZE.h * physMult },
+    armLength:   ARM_LEN * physMult,
+    speed:       TIER.speed[s.speed ?? '중'],
+    power:       TIER.power[s.power ?? '중'],
+    maxStamina:  TIER.stamina[s.stamina ?? '중'],
+    hitboxes:    makePlayerHitboxes(physMult),
+  };
+}
+
+function makePlayerActionsFor(hitboxes) {
+  return {
+    IDLE:      { duration: 0,  sprites: PLAYER_SPRITES.IDLE,     getHitbox: hitboxes.IDLE     },
+    RUN:       { duration: 0,  sprites: PLAYER_SPRITES.RUN,      frameMs: 150, getHitbox: hitboxes.RUN },
+    JUMP:      { duration: 0,  sprites: PLAYER_SPRITES.JUMP,     getHitbox: hitboxes.JUMP     },
+    SPIKE:     { duration: 10, sprites: PLAYER_SPRITES.SPIKE,    getHitbox: hitboxes.SPIKE    },
+    BLOCK:     { duration: 50, sprites: PLAYER_SPRITES.BLOCK,    getHitbox: hitboxes.BLOCK    },
+    DIVE:      { duration: 35, sprites: PLAYER_SPRITES.DIVE,     getHitbox: hitboxes.DIVE     },
+    RECEIVE:   { duration: 15, sprites: PLAYER_SPRITES.RECEIVE,  getHitbox: hitboxes.RECEIVE, actionRange: { ox: 0, oy: 0.03, r: RECEIVE_R } },
+    SERVE:     { duration: 0,  sprites: PLAYER_SPRITES.SERVE,    getHitbox: hitboxes.IDLE     },
+    SERVE_HIT: { duration: 8,  sprites: PLAYER_SPRITES.SERVE_HIT,getHitbox: hitboxes.IDLE     },
+  };
+}
+
 // ─── 엔티티 등록 + 초기 상태 반환 ────────────────────────────────────────────
 export function initEntities(entityManager, p1Char, p2Char) {
+  const p1Stats = resolveCharStats(p1Char);
+  const p2Stats = resolveCharStats(p2Char);
+
   entityManager.register("court", {
     type: "bg",
     role: "bg",
@@ -151,15 +139,14 @@ export function initEntities(entityManager, p1Char, p2Char) {
     playerSide: "left",
     assetId: p1Char?.id ?? "hinata",
     origin: "bottom-center",
-    size: P_SIZE,
-    physics: {
-      gravity: P_GRAVITY,
-      restitution: 0,
-      apexThreshold: APEX_THRESHOLD,
-    },
-    armLength: ARM_LEN,
-    actions: makePlayerActions(),
-    serveTypes: p1Char?.serveTypes ?? ["UNDERHAND"],
+    size: p1Stats.size,
+    physics: { gravity: P_GRAVITY, restitution: 0, apexThreshold: APEX_THRESHOLD },
+    armLength:   p1Stats.armLength,
+    speed:       p1Stats.speed,
+    power:       p1Stats.power,
+    maxStamina:  p1Stats.maxStamina,
+    actions:     makePlayerActionsFor(p1Stats.hitboxes),
+    serveTypes:  p1Char?.serveTypes ?? ["UNDERHAND"],
   });
 
   entityManager.register("player2", {
@@ -168,15 +155,14 @@ export function initEntities(entityManager, p1Char, p2Char) {
     playerSide: "right",
     assetId: p2Char?.id ?? "hinata",
     origin: "bottom-center",
-    size: P_SIZE,
-    physics: {
-      gravity: P_GRAVITY,
-      restitution: 0,
-      apexThreshold: APEX_THRESHOLD,
-    },
-    armLength: ARM_LEN,
-    actions: makePlayerActions(),
-    serveTypes: p2Char?.serveTypes ?? ["UNDERHAND"],
+    size: p2Stats.size,
+    physics: { gravity: P_GRAVITY, restitution: 0, apexThreshold: APEX_THRESHOLD },
+    armLength:   p2Stats.armLength,
+    speed:       p2Stats.speed,
+    power:       p2Stats.power,
+    maxStamina:  p2Stats.maxStamina,
+    actions:     makePlayerActionsFor(p2Stats.hitboxes),
+    serveTypes:  p2Char?.serveTypes ?? ["UNDERHAND"],
   });
 
   entityManager.register("ball", {
@@ -197,10 +183,10 @@ export function initEntities(entityManager, p1Char, p2Char) {
     },
   });
 
-  return makeInitialState(Math.random() < 0.5, null, null);
+  return makeInitialState(Math.random() < 0.5, null, null, p1Stats.maxStamina, p2Stats.maxStamina);
 }
 
-function makeInitialState(serveLeft, score, sets) {
+function makeInitialState(serveLeft, score, sets, p1Stamina, p2Stamina) {
   const serverSide = serveLeft ? "left" : "right";
   const server = serveLeft ? "player1" : "player2";
   const sx = serveLeft ? SERVE_X_LEFT : SERVE_X_RIGHT;
@@ -220,6 +206,7 @@ function makeInitialState(serveLeft, score, sets) {
       prevAction: false,
       noBallCollide: serveLeft,
       serveBuffer: 0,
+      stamina: p1Stamina ?? 120,
     },
     player2: {
       x: serveLeft ? 0.75 : sx,
@@ -234,6 +221,7 @@ function makeInitialState(serveLeft, score, sets) {
       prevAction: false,
       noBallCollide: !serveLeft,
       serveBuffer: 0,
+      stamina: p2Stamina ?? 120,
     },
     ball: {
       x: sx + (serveLeft ? 1 : -1) * SERVE_BALL_OFFSET,
@@ -262,21 +250,23 @@ function executeServe(state, entity) {
 
   const facingX = state.serverSide === "left" ? 1 : -1;
   const dx = (bs.x - ps.x) * facingX;
-  const headY = ps.y + P_SIZE.h;
+  const entitySize = entity?.size ?? P_SIZE;
+  const headY = ps.y + entitySize.h;
+  const armLen = entity?.armLength ?? ARM_LEN;
   const isAir = !ps.onGround;
   const isOverhand = bs.y >= headY;
   const types = entity?.serveTypes ?? ["OVERHAND", "UNDERHAND"];
 
-  // 공통 x 범위: 앞쪽 팔길이 이내
+  // x 범위: SERVE_BALL_OFFSET 기준 고정 (체격 스케일 무관)
   if (dx <= 0 || dx > ARM_LEN) return false;
 
   let serveType;
   if (isAir) {
-    if (!isOverhand || bs.y > headY + ARM_LEN) return false;
+    if (!isOverhand || bs.y > headY + armLen) return false;
     if (!types.includes("JUMP")) return false;
     serveType = "JUMP";
   } else if (isOverhand) {
-    if (bs.y > headY + ARM_LEN) return false;
+    if (bs.y > headY + armLen) return false;
     if (!types.includes("OVERHAND")) return false;
     serveType = "OVERHAND";
   } else {
@@ -285,8 +275,9 @@ function executeServe(state, entity) {
     serveType = "UNDERHAND";
   }
 
+  const power = entity?.power ?? 1.0;
   const ratio = Math.min(1, Math.max(0, bs.y / (state.serveTossY || 0.001)));
-  const speed = SERVE_SPEED_MIN + (SERVE_SPEED_MAX - SERVE_SPEED_MIN) * ratio;
+  const speed = (SERVE_SPEED_MIN + (SERVE_SPEED_MAX - SERVE_SPEED_MIN) * ratio) * power;
 
   let vx, vy;
   if (serveType === "JUMP") {
@@ -387,37 +378,57 @@ export const handlers = {
     if (es.actionType === "DIVE") es.vx *= 0.92;
 
     if (es.actionType === "BLOCK" && !es.onGround && locked && es.vy < 0)
-      es.vy += P_GRAVITY * 0.2;
+      es.vy += P_GRAVITY * 0.1;
 
     if (locked) return null;
 
+    // 스태미나 기반 유효 속도
+    const staminaRatio = es.stamina / entity.maxStamina;
+    const effectiveSpeed = entity.speed * Math.max(0.4, staminaRatio);
+
     // 점프 중 더블업 → 블로킹
-    if (es.actionType === "JUMP" && DU)
+    if (es.actionType === "JUMP" && DU) {
+      es.stamina = Math.max(0, es.stamina - DRAIN_BLOCK);
       return { action: "BLOCK", dvx: 0, dvy: 0 };
+    }
 
     // 다이빙 (지상 전용)
     if (DL && es.onGround) {
+      es.stamina = Math.max(0, es.stamina - DRAIN_DIVE);
       es.vx = -DIVE_VX;
       es.facing = -1;
       return { action: "DIVE", dvx: 0, dvy: DIVE_VY };
     }
     if (DR && es.onGround) {
+      es.stamina = Math.max(0, es.stamina - DRAIN_DIVE);
       es.vx = DIVE_VX;
       es.facing = 1;
       return { action: "DIVE", dvx: 0, dvy: DIVE_VY };
     }
 
     // 지상 더블업 → 블로킹 점프
-    if (DU && es.onGround) return { action: "BLOCK", dvx: 0, dvy: BLOCK_VY };
+    if (DU && es.onGround) {
+      es.stamina = Math.max(0, es.stamina - DRAIN_BLOCK);
+      return { action: "BLOCK", dvx: 0, dvy: BLOCK_VY };
+    }
 
     // 스파이크
-    if (A) return { action: "SPIKE", dvx: 0, dvy: 0 };
+    if (A) {
+      es.stamina = Math.max(0, es.stamina - DRAIN_SPIKE);
+      return { action: "SPIKE", dvx: 0, dvy: 0 };
+    }
 
     // 리시브 (지상)
-    if (D && es.onGround) return { action: "RECEIVE", dvx: 0, dvy: 0 };
+    if (D && es.onGround) {
+      es.stamina = Math.max(0, es.stamina - DRAIN_RECEIVE);
+      return { action: "RECEIVE", dvx: 0, dvy: 0 };
+    }
 
     // 점프
-    if (U && es.onGround) return { action: "JUMP", dvx: 0, dvy: JUMP_VY };
+    if (U && es.onGround) {
+      es.stamina = Math.max(0, es.stamina - DRAIN_JUMP);
+      return { action: "JUMP", dvx: 0, dvy: JUMP_VY };
+    }
 
     // 착지
     if (
@@ -432,12 +443,14 @@ export const handlers = {
 
     // 이동
     if (L) {
-      es.vx = -P_SPEED;
+      es.stamina = Math.max(0, es.stamina - DRAIN_MOVE);
+      es.vx = -effectiveSpeed;
       es.facing = -1;
       return es.actionType === "RUN" ? null : { action: "RUN", dvx: 0, dvy: 0 };
     }
     if (R) {
-      es.vx = P_SPEED;
+      es.stamina = Math.max(0, es.stamina - DRAIN_MOVE);
+      es.vx = effectiveSpeed;
       es.facing = 1;
       return es.actionType === "RUN" ? null : { action: "RUN", dvx: 0, dvy: 0 };
     }
@@ -447,7 +460,10 @@ export const handlers = {
       es.vx = 0;
       return { action: "IDLE", dvx: 0, dvy: 0 };
     }
-    if (es.actionType === "IDLE") es.vx = 0;
+    if (es.actionType === "IDLE") {
+      es.vx = 0;
+      es.stamina = Math.min(entity.maxStamina, es.stamina + RECOVER_IDLE);
+    }
 
     return null;
   },
@@ -484,7 +500,8 @@ export const handlers = {
   onBallHitNet(_state) {},
   onBallHitPlayer(_state, _entityId, _hit) {},
 
-  onBallInActionRange(state, entityId, _entity, actionType) {
+  onBallInActionRange(state, entityId, entity, actionType) {
+    const _entity = entity;
     const ps = state[entityId];
     const bs = state.ball;
     if (!ps || !bs) return;
@@ -503,7 +520,8 @@ export const handlers = {
       const fx = rawX * (1 - BIAS) + (tgtX / tgtLen) * BIAS;
       const fy = rawY * (1 - BIAS) + (tgtY / tgtLen) * BIAS;
       const fl = Math.hypot(fx, fy);
-      const SPEED = 14 / LW;
+      const power = _entity?.power ?? 1.0;
+      const SPEED = (14 / LW) * power;
       bs.vx = (fx / fl) * SPEED;
       bs.vy = (fy / fl) * SPEED;
     } else if (actionType === "RECEIVE") {
@@ -535,7 +553,7 @@ export function tickGameRule(state) {
       if (ps && state.ball) {
         const facingX = state.serverSide === "left" ? 1 : -1;
         state.ball.x = ps.x + facingX * SERVE_BALL_OFFSET;
-        state.ball.y = P_SIZE.h;
+        state.ball.y = ps.y + P_SIZE.h;
         state.ball.vx = 0;
         state.ball.vy = 0;
       }
@@ -565,6 +583,8 @@ export function tickGameRule(state) {
     newScore = { p1: 0, p2: 0 };
   }
 
-  const fresh = makeInitialState(state.lastScorer === "p1", newScore, newSets);
+  const p1Stamina = state.player1.stamina;
+  const p2Stamina = state.player2.stamina;
+  const fresh = makeInitialState(state.lastScorer === "p1", newScore, newSets, p1Stamina, p2Stamina);
   Object.assign(state, fresh);
 }

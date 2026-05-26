@@ -1,7 +1,16 @@
-import { CHARACTERS } from './Characters.js';
+import { CHARACTERS, TIER } from './Characters.js';
+
+const STAT_TIERS = {
+  speed:    ['하', '중', '상'],
+  power:    ['하', '중', '상'],
+  physique: ['소', '중', '대'],
+  stamina:  ['하', '중', '상'],
+};
+const STAT_LABELS = { speed: '속도', power: '파워', physique: '체격', stamina: '체력' };
+const STAT_COLORS = { speed: '#44aaff', power: '#ff6644', physique: '#aa66ff', stamina: '#44dd88' };
 
 const LW = 800, LH = 450;
-const CARD_W = 120, CARD_H = 160, CARD_GAP = 20;
+const CARD_W = 120, CARD_H = 220, CARD_GAP = 20;
 const TOTAL_W = CHARACTERS.length * CARD_W + (CHARACTERS.length - 1) * CARD_GAP;
 const START_X = (LW - TOTAL_W) / 2;
 
@@ -70,24 +79,60 @@ export class CharacterSelect {
   }
 
   draw(ctx) {
-    ctx.fillStyle = '#1a2a3a';
+    // 체육관 벽 (상단 배경)
+    const wallGrad = ctx.createLinearGradient(0, 0, 0, LH * 0.7);
+    wallGrad.addColorStop(0, '#0e1b3a');
+    wallGrad.addColorStop(1, '#1e3560');
+    ctx.fillStyle = wallGrad;
     ctx.fillRect(0, 0, LW, LH);
 
-    ctx.fillStyle = '#fff';
+    // 체육관 마루 (하단)
+    const floorY = Math.round(LH * 0.68);
+    ctx.fillStyle = '#7c4e14';
+    ctx.fillRect(0, floorY, LW, LH - floorY);
+    ctx.lineWidth = 1;
+    for (let fy = floorY + 6; fy < LH; fy += 9) {
+      ctx.strokeStyle = 'rgba(0,0,0,0.18)';
+      ctx.beginPath(); ctx.moveTo(0, fy); ctx.lineTo(LW, fy); ctx.stroke();
+    }
+    ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(0, floorY + 1); ctx.lineTo(LW, floorY + 1); ctx.stroke();
+
+    // 포인트 스트라이프 (오렌지 + 노랑)
+    ctx.fillStyle = '#e85c00';
+    ctx.fillRect(0, floorY - 14, LW, 9);
+    ctx.fillStyle = '#f5c000';
+    ctx.fillRect(0, floorY - 5, LW, 5);
+
+    // 스포트라이트
+    const spot = ctx.createRadialGradient(LW * 0.5, -20, 0, LW * 0.5, -20, LW * 0.75);
+    spot.addColorStop(0, 'rgba(255,240,180,0.18)');
+    spot.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = spot;
+    ctx.fillRect(0, 0, LW, LH);
+
+    // 좌우 포인트 기둥
+    ctx.fillStyle = 'rgba(255,120,0,0.2)';
+    ctx.fillRect(0, 0, 14, floorY);
+    ctx.fillRect(LW - 14, 0, 14, floorY);
+
+    // 타이틀
+    ctx.fillStyle = '#ffdd33';
     ctx.font = 'bold 28px monospace';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
-    ctx.fillText('캐릭터 선택', LW / 2, 24);
+    ctx.fillText('캐릭터 선택', LW / 2, 22);
 
-    ctx.font = '14px monospace';
-    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    ctx.font = '13px monospace';
+    ctx.fillStyle = 'rgba(255,255,255,0.75)';
     if (this.#singlePlay) {
-      ctx.fillText('1P: A/D 이동  /  ShiftLeft 확정  →  Enter 게임 시작', LW / 2, 60);
+      ctx.fillText('1P: A/D 이동  /  ShiftLeft 확정  →  Enter 게임 시작', LW / 2, 58);
     } else {
-      ctx.fillText('1P: A/D / ShiftLeft    2P: ←→ / ShiftRight    둘 다 확정 후 Enter 게임 시작', LW / 2, 60);
+      ctx.fillText('1P: A/D / ShiftLeft    2P: ←→ / ShiftRight    둘 다 확정 후 Enter 게임 시작', LW / 2, 58);
     }
 
-    const CARDS_Y = 110;
+    const CARDS_Y = 130;
 
     for (let i = 0; i < CHARACTERS.length; i++) {
       const char = CHARACTERS[i];
@@ -95,7 +140,7 @@ export class CharacterSelect {
       const is1P = i === this.#p1Idx;
       const is2P = !this.#singlePlay && i === this.#p2Idx;
 
-      ctx.fillStyle = '#2a3f55';
+      ctx.fillStyle = '#0f1e40';
       ctx.beginPath();
       ctx.roundRect(cx, CARDS_Y, CARD_W, CARD_H, 8);
       ctx.fill();
@@ -133,6 +178,7 @@ export class CharacterSelect {
       ctx.textBaseline = 'top';
       ctx.fillText(char.fullName ?? char.name, cx + CARD_W / 2, CARDS_Y + CARD_W);
 
+      // 서브 배지
       const badgeY = CARDS_Y + CARD_W + 20;
       ctx.font = '10px monospace';
       for (let j = 0; j < char.serveTypes.length; j++) {
@@ -146,6 +192,32 @@ export class CharacterSelect {
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(label, bx + 16, badgeY + 7);
+      }
+
+      // 스탯 바
+      if (char.stats) {
+        const statKeys = ['speed', 'power', 'stamina', 'physique'];
+        const barX = cx + 8;
+        const barW = CARD_W - 16;
+        const barH = 5;
+        const barStartY = badgeY + 22;
+        ctx.font = '8px monospace';
+        ctx.textBaseline = 'middle';
+        for (let k = 0; k < statKeys.length; k++) {
+          const key = statKeys[k];
+          const tier = char.stats[key];
+          const tiers = STAT_TIERS[key];
+          const level = tiers.indexOf(tier) + 1; // 1~3
+          const ratio = level / tiers.length;
+          const y = barStartY + k * 11;
+          ctx.fillStyle = 'rgba(255,255,255,0.15)';
+          ctx.fillRect(barX + 22, y, barW - 22, barH);
+          ctx.fillStyle = STAT_COLORS[key];
+          ctx.fillRect(barX + 22, y, (barW - 22) * ratio, barH);
+          ctx.fillStyle = 'rgba(255,255,255,0.6)';
+          ctx.textAlign = 'left';
+          ctx.fillText(STAT_LABELS[key], barX, y + barH / 2);
+        }
       }
 
       if (is1P) {

@@ -55,8 +55,6 @@ export class Renderer {
   constructor(canvas, assets) {
     this.#canvas = canvas;
     this.#assets = assets;
-    this.#canvas.width  = LOGICAL_WIDTH;
-    this.#canvas.height = LOGICAL_HEIGHT;
     this.#ctx = canvas.getContext("2d");
 
     this.#applyScale();
@@ -134,11 +132,16 @@ export class Renderer {
   }
 
   #applyScale() {
+    const dpr   = window.devicePixelRatio || 1;
     const scale = Math.min(
       window.innerWidth  / LOGICAL_WIDTH,
       window.innerHeight / LOGICAL_HEIGHT,
     );
+    const totalScale = scale * dpr * 0.75;
+    this.#canvas.width  = Math.round(LOGICAL_WIDTH  * totalScale);
+    this.#canvas.height = Math.round(LOGICAL_HEIGHT * totalScale);
     this.#canvas.style.width  = `${LOGICAL_WIDTH  * scale}px`;
     this.#canvas.style.height = `${LOGICAL_HEIGHT * scale}px`;
+    this.#ctx.setTransform(totalScale, 0, 0, totalScale, 0, 0);
   }
 }
