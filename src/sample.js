@@ -184,6 +184,42 @@ function drawHitboxes(ctx, buf, entityManager) {
     }
   }
 
+  // ── 서브 범위 시각화 (tossed 단계) ────────────────────────────────────────
+  if (buf.phase === 'serve' && buf.serveStep === 'tossed') {
+    const ss = buf[buf.server];
+    if (ss) {
+      const ARM    = 35;           // ARM_LEN in pixels (35/800 * 800)
+      const PSH    = 80;           // P_SIZE.h in pixels
+      const facDir = buf.serverSide === 'left' ? 1 : -1;
+      const spx    = px(ss.x);
+      const footPY = py(ss.y);                  // 발 y
+      const headPY = py(ss.y + 80 / LW);        // 정수리 y
+
+      // 오버핸드 범위 (노란색): x=앞쪽 ARM_LEN, y=정수리~정수리+ARM_LEN
+      const ovX    = facDir === 1 ? spx : spx - ARM;
+      const ovTopY = headPY - ARM;   // canvas: 정수리에서 ARM_LEN 위
+      ctx.fillStyle   = 'rgba(255,220,0,0.20)';
+      ctx.strokeStyle = 'rgba(255,220,0,0.9)';
+      ctx.lineWidth   = 1.5;
+      ctx.fillRect(ovX, ovTopY, ARM, ARM);
+      ctx.strokeRect(ovX, ovTopY, ARM, ARM);
+      ctx.fillStyle = 'rgba(255,220,0,0.9)';
+      ctx.font = 'bold 11px monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+      ctx.fillText('오버핸드', ovX + ARM / 2, ovTopY - 2);
+
+      // 언더핸드 범위 (하늘색): x=앞쪽 ARM_LEN, y=정수리~발 (직사각형)
+      const unX = facDir === 1 ? spx : spx - ARM;
+      ctx.fillStyle   = 'rgba(80,200,255,0.20)';
+      ctx.strokeStyle = 'rgba(80,200,255,0.9)';
+      ctx.lineWidth   = 1.5;
+      ctx.fillRect(unX, headPY, ARM, footPY - headPY);
+      ctx.strokeRect(unX, headPY, ARM, footPY - headPY);
+      ctx.fillStyle = 'rgba(80,200,255,0.9)';
+      ctx.font = 'bold 11px monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+      ctx.fillText('언더핸드', unX + ARM / 2, footPY - 2);
+    }
+  }
+
   ctx.restore();
 }
 
@@ -205,6 +241,20 @@ function drawHUD(ctx, state, W, H) {
   ctx.textAlign    = 'left';
   ctx.fillStyle    = 'rgba(255,255,255,0.65)';
   ctx.fillText('1P: ←→이동 / ↑점프 / ↓리시브 / Shift스파이크 / ←←or→→다이빙 / ↑↑블로킹 / ↓↓스킬  |  2P: WASD / ShiftLeft', 8, H - 18);
+
+  // 서브 오버레이
+  if (state.phase === 'serve') {
+    const who  = state.server === 'player1' ? '1P' : '2P';
+    const key  = state.server === 'player1' ? 'ShiftRight' : 'ShiftLeft';
+    const step = state.serveStep === 'ready' ? `${key}: 토스` : `${key}: 서브`;
+    ctx.fillStyle    = 'rgba(0,0,0,0.28)';
+    ctx.fillRect(W / 2 - 160, H / 2 - 30, 320, 54);
+    ctx.fillStyle    = '#fff';
+    ctx.font         = 'bold 20px monospace';
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`${who} 서브 — ${step}`, W / 2, H / 2);
+  }
 
   // 득점 오버레이
   if (state.phase === 'point') {

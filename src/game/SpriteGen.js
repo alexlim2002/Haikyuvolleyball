@@ -253,15 +253,15 @@ function drawDive(ctx, cx, i) {
 }
 
 // ─── PNG 스프라이트 시트 → 1D 프레임 배열 ────────────────────────────────────
-async function loadImageFrames(src, cols) {
+async function loadImageFrames(src, frameSize) {
   const blob = await fetch(src).then(r => r.blob());
   const img  = await createImageBitmap(blob);
-  const size = Math.floor(img.width / cols);
-  const rows = Math.floor(img.height / size);
+  const cols = Math.floor(img.width  / frameSize);
+  const rows = Math.floor(img.height / frameSize);
   const out  = [];
   for (let row = 0; row < rows; row++) {
     for (let col = 0; col < cols; col++) {
-      out.push({ image: img, sx: col * size, sy: row * size, sw: size, sh: size });
+      out.push({ image: img, sx: col * frameSize, sy: row * frameSize, sw: frameSize, sh: frameSize });
     }
   }
   return out;
@@ -273,7 +273,7 @@ export async function generateAssets() {
     genCourt(),
     genNet(),
     genBall(),
-    loadImageFrames('../asset/character/히나타쇼요.png', 8),
+    loadImageFrames('../asset/character/히나타쇼요.png', 127),
   ]);
   return { court, net, ball, player };
 }
