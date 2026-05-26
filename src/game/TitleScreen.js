@@ -9,26 +9,29 @@ export class TitleScreen {
   #onSelect;
 
   // onSelect(mode) — mode: 'single' | 'multi'
-  constructor(onSelect) {
+  // actionAlreadyHeld: 진입 시점에 ACTION 키가 눌려있으면 true — 즉시 선택 방지
+  constructor(onSelect, actionAlreadyHeld = false) {
     this.#onSelect = onSelect;
+    this.#prevAction1 = actionAlreadyHeld;
+    this.#prevAction2 = actionAlreadyHeld;
   }
 
   tick(inputs) {
-    const up   = !!(inputs['1P_UP']   || inputs['2P_UP']);
-    const down = !!(inputs['1P_DOWN'] || inputs['2P_DOWN']);
-    const act  = !!(inputs['1P_ACTION'] || inputs['2P_ACTION']);
+    const up      = !!(inputs['1P_UP']      || inputs['2P_UP']);
+    const down    = !!(inputs['1P_DOWN']    || inputs['2P_DOWN']);
+    const confirm = !!(inputs['1P_CONFIRM'] || inputs['2P_CONFIRM']);
 
     if (up   && !this.#prevUp)   this.#selectedIdx = (this.#selectedIdx - 1 + 2) % 2;
     if (down && !this.#prevDown) this.#selectedIdx = (this.#selectedIdx + 1) % 2;
 
-    if (act && !this.#prevAction1 && !this.#prevAction2) {
+    if (confirm && !this.#prevAction1 && !this.#prevAction2) {
       this.#onSelect(this.#selectedIdx === 0 ? 'single' : 'multi');
     }
 
     this.#prevUp      = up;
     this.#prevDown    = down;
-    this.#prevAction1 = !!(inputs['1P_ACTION']);
-    this.#prevAction2 = !!(inputs['2P_ACTION']);
+    this.#prevAction1 = !!(inputs['1P_CONFIRM']);
+    this.#prevAction2 = !!(inputs['2P_CONFIRM']);
   }
 
   draw(ctx) {
@@ -83,6 +86,6 @@ export class TitleScreen {
     ctx.font = '12px monospace';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'bottom';
-    ctx.fillText('↑↓ 선택  /  Shift 확인  /  게임 중 Esc — 타이틀로', LW / 2, LH - 14);
+    ctx.fillText('↑↓ 선택  /  Enter 확인  /  게임 중 Esc — 일시정지  /  일시정지 중 Enter — 타이틀로', LW / 2, LH - 14);
   }
 }

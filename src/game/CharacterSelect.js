@@ -12,10 +12,11 @@ export class CharacterSelect {
   #p2Idx = 1;
   #p1Done = false;
   #p2Done = false;
-  #prev1 = true;
-  #prev2 = true;
+  #prev1 = false;
+  #prev2 = false;
   #prevL1 = false; #prevR1 = false;
   #prevL2 = false; #prevR2 = false;
+  #prevConfirm = false;
   #onComplete;
 
   constructor(assets, onComplete, singlePlay = false) {
@@ -30,35 +31,42 @@ export class CharacterSelect {
   }
 
   tick(inputs) {
-    if (this.#p1Done && this.#p2Done) return;
-
-    // 1P: WASD + ShiftLeft
+    // 1P: WASD + ShiftLeft 확정/취소
     const L1 = !!inputs['1P_LEFT'];
     const R1 = !!inputs['1P_RIGHT'];
     const A1 = !!inputs['1P_ACTION'];
+    if (A1 && !this.#prev1) {
+      if (!this.#p1Done) this.#p1Done = true;
+      else               this.#p1Done = false;
+    }
     if (!this.#p1Done) {
       if (L1 && !this.#prevL1) this.#p1Idx = (this.#p1Idx - 1 + CHARACTERS.length) % CHARACTERS.length;
       if (R1 && !this.#prevR1) this.#p1Idx = (this.#p1Idx + 1) % CHARACTERS.length;
-      if (A1 && !this.#prev1) this.#p1Done = true;
     }
     this.#prevL1 = L1; this.#prevR1 = R1; this.#prev1 = A1;
 
-    // 2P: ArrowKeys + ShiftRight (멀티 전용)
+    // 2P: ArrowKeys + ShiftRight 확정/취소 (멀티 전용)
     if (!this.#singlePlay) {
       const L2 = !!inputs['2P_LEFT'];
       const R2 = !!inputs['2P_RIGHT'];
       const A2 = !!inputs['2P_ACTION'];
+      if (A2 && !this.#prev2) {
+        if (!this.#p2Done) this.#p2Done = true;
+        else               this.#p2Done = false;
+      }
       if (!this.#p2Done) {
         if (L2 && !this.#prevL2) this.#p2Idx = (this.#p2Idx - 1 + CHARACTERS.length) % CHARACTERS.length;
         if (R2 && !this.#prevR2) this.#p2Idx = (this.#p2Idx + 1) % CHARACTERS.length;
-        if (A2 && !this.#prev2) this.#p2Done = true;
       }
       this.#prevL2 = L2; this.#prevR2 = R2; this.#prev2 = A2;
     }
 
-    if (this.#p1Done && this.#p2Done) {
+    // 둘 다 확정 후 Enter로 게임 시작
+    const confirm = !!(inputs['1P_CONFIRM'] || inputs['2P_CONFIRM']);
+    if (this.#p1Done && this.#p2Done && confirm && !this.#prevConfirm) {
       this.#onComplete(CHARACTERS[this.#p1Idx], CHARACTERS[this.#p2Idx]);
     }
+    this.#prevConfirm = confirm;
   }
 
   draw(ctx) {
@@ -74,9 +82,9 @@ export class CharacterSelect {
     ctx.font = '14px monospace';
     ctx.fillStyle = 'rgba(255,255,255,0.6)';
     if (this.#singlePlay) {
-      ctx.fillText('1P: A/D 이동  /  ShiftLeft 선택', LW / 2, 60);
+      ctx.fillText('1P: A/D 이동  /  ShiftLeft 확정  →  Enter 게임 시작', LW / 2, 60);
     } else {
-      ctx.fillText('1P: A/D / ShiftLeft    2P: ←→ / ShiftRight', LW / 2, 60);
+      ctx.fillText('1P: A/D / ShiftLeft    2P: ←→ / ShiftRight    둘 다 확정 후 Enter 게임 시작', LW / 2, 60);
     }
 
     const CARDS_Y = 110;

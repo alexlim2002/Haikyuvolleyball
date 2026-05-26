@@ -8,7 +8,7 @@
  * 엔티티 원점: 플레이어/네트는 밑바닥 중앙, 공은 중심점.
  *
  * BLOCK/DIVE 의 팔 연장은 엔진(GameLoop)이 armLength 를 이용해 처리한다.
- * SPIKE/SKILL 의 spikeArm 은 isArm:true 태그로 엔진이 액션 범위 기준점을 추출한다.
+ * SPIKE 의 spikeArm 은 isArm:true 태그로 엔진이 액션 범위 기준점을 추출한다.
  */
 
 function lerp(a, b, t) { return a + (b - a) * t; }
@@ -33,7 +33,6 @@ export const playerHitboxes = {
   RUN:     (_t, _f)     => [head(), torso()],
   JUMP:    (_t, _f)     => [head(), torso()],
   SPIKE:   (t,  facing) => [head(), torso(), spikeArm(t, facing)],
-  SKILL:   (t,  facing) => [head(), torso(), spikeArm(t, facing)],
   BLOCK:   (_t, _f)     => [head(), torso()],
   DIVE:    (_t, _f)     => [head(), torso()],
   RECEIVE: (_t, _f)     => [head(), torso()],

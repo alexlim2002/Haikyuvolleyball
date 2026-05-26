@@ -52,7 +52,6 @@ const PLAYER_SPRITES = {
   RECEIVE: { right: { start: 14, count: 1 }, left: { start: 15, count: 1 } },
   SPIKE:   { right: { start: 16, count: 2 }, left: { start: 18, count: 2 } },
   DIVE:    { right: { start: 20, count: 1 }, left: { start: 21, count: 1 } },
-  SKILL:   { right: { start: 0,  count: 1 }, left: { start: 1,  count: 1 } },
 };
 
 function makePlayerActions() {
@@ -61,10 +60,9 @@ function makePlayerActions() {
     RUN:     { duration: 0,  sprites: PLAYER_SPRITES.RUN,     frameMs: 150, getHitbox: playerHitboxes.RUN     },
     JUMP:    { duration: 0,  sprites: PLAYER_SPRITES.JUMP,    getHitbox: playerHitboxes.JUMP    },
     SPIKE:   { duration: 10, sprites: PLAYER_SPRITES.SPIKE,   getHitbox: playerHitboxes.SPIKE   },
-    BLOCK:   { duration: 15, sprites: PLAYER_SPRITES.BLOCK,   getHitbox: playerHitboxes.BLOCK   },
+    BLOCK:   { duration: 50, sprites: PLAYER_SPRITES.BLOCK,   getHitbox: playerHitboxes.BLOCK   },
     DIVE:    { duration: 35, sprites: PLAYER_SPRITES.DIVE,    getHitbox: playerHitboxes.DIVE    },
     RECEIVE: { duration: 15, sprites: PLAYER_SPRITES.RECEIVE, getHitbox: playerHitboxes.RECEIVE, actionRange: { ox: 0, oy: 0.03, r: RECEIVE_R } },
-    SKILL:   { duration: 30, sprites: PLAYER_SPRITES.SKILL,   getHitbox: playerHitboxes.SKILL   },
     SERVE:     { duration: 0, sprites: PLAYER_SPRITES.SERVE,     getHitbox: playerHitboxes.IDLE },
     SERVE_HIT: { duration: 8, sprites: PLAYER_SPRITES.SERVE_HIT, getHitbox: playerHitboxes.IDLE },
   };
@@ -148,7 +146,7 @@ export function initEntities(entityManager, p1Char, p2Char) {
     },
   });
 
-  return makeInitialState(true, null, null);
+  return makeInitialState(Math.random() < 0.5, null, null);
 }
 
 function makeInitialState(serveLeft, score, sets) {
@@ -158,8 +156,8 @@ function makeInitialState(serveLeft, score, sets) {
   return {
     court:   { x: 0.5,  y: 0 },
     net:     { x: 0.5,  y: 0, vx: 0, vy: 0 },
-    player1: { x: serveLeft ? sx : 0.25, y: 0, vx: 0, vy: 0, facing:  1, onGround: true, actionType: 'IDLE', actionTick: 0, actionDuration: 0, prevAction: false, noBallCollide: serveLeft,  serveBuffer: 0 },
-    player2: { x: serveLeft ? 0.75 : sx, y: 0, vx: 0, vy: 0, facing: -1, onGround: true, actionType: 'IDLE', actionTick: 0, actionDuration: 0, prevAction: false, noBallCollide: !serveLeft, serveBuffer: 0 },
+    player1: { x: serveLeft ? sx : 0.25, y: 0, vx: 0, vy: 0, facing:  1, onGround: true, actionType: 'IDLE', actionTick: 0, actionDuration: 0, prevAction: true, noBallCollide: serveLeft,  serveBuffer: 0 },
+    player2: { x: serveLeft ? 0.75 : sx, y: 0, vx: 0, vy: 0, facing: -1, onGround: true, actionType: 'IDLE', actionTick: 0, actionDuration: 0, prevAction: true, noBallCollide: !serveLeft, serveBuffer: 0 },
     ball:    { x: sx + (serveLeft ? 1 : -1) * SERVE_BALL_OFFSET, y: P_SIZE.h, vx: 0, vy: 0, actionRangeCooldown: 0 },
     phase:      'serve',
     serveStep:  'ready',   // 'ready' → 'tossed'
@@ -299,8 +297,8 @@ export const handlers = {
     // DIVE 감속 (매 틱)
     if (es.actionType === 'DIVE') es.vx *= 0.92;
 
-    // SKILL — locked 중에도 허용
-    if (DD) return { action: 'SKILL', dvx: -es.vx, dvy: 0 };
+
+    if (es.actionType === 'BLOCK' && !es.onGround && locked) es.vy += P_GRAVITY * 0.5;
 
     if (locked) return null;
 
@@ -371,7 +369,7 @@ export const handlers = {
     const bs = state.ball;
     if (!ps || !bs) return;
 
-    if (actionType === 'SPIKE' || actionType === 'SKILL') {
+    if (actionType === 'SPIKE') {
       // 플레이어→공 방향과 "앞아래" 목표 방향을 블렌딩
       const dx = bs.x - ps.x, dy = bs.y - ps.y;
       const len = Math.hypot(dx, dy) || 1;

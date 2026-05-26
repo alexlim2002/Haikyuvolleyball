@@ -18,11 +18,13 @@ const KEYS = {
   '1P_UP':     'KeyW',
   '1P_DOWN':   'KeyS',
   '1P_ACTION': 'ShiftLeft',
+  '1P_CONFIRM': 'Enter',
   '2P_LEFT':   'ArrowLeft',
   '2P_RIGHT':  'ArrowRight',
   '2P_UP':     'ArrowUp',
   '2P_DOWN':   'ArrowDown',
   '2P_ACTION': 'ShiftRight',
+  '2P_CONFIRM': 'Enter',
 };
 
 const TPS     = 60;
@@ -42,11 +44,12 @@ async function main() {
   const renderer  = new Renderer(canvas, assets);
   const inputGen  = initInputSystem({ keyboardMapping: KEYS, touchMapping: {} })();
 
-  let phase        = 'title';
-  let isSinglePlay = false;
-  let paused       = false;
-  let titleScreen  = null;
-  let charSelect   = null;
+  let phase          = 'title';
+  let isSinglePlay   = false;
+  let paused         = false;
+  let prevShiftPause = false;
+  let titleScreen    = null;
+  let charSelect     = null;
   let stateSystem, gameLoop, entityManager, botController;
   let lastTime    = performance.now();
   let accumulator = 0;
@@ -56,24 +59,23 @@ async function main() {
       if (phase === 'select') goToTitle();
       else if (phase === 'game') paused = !paused;
     }
-    if ((e.code === 'ShiftLeft' || e.code === 'ShiftRight') && phase === 'game') {
-      if (paused || stateSystem?.buf?.phase === 'gameover') goToTitle();
-    }
   });
 
   function goToTitle() {
+    const { value: rawInputs } = inputGen.next();
+    const confirmHeld = !!(rawInputs['1P_CONFIRM'] || rawInputs['2P_CONFIRM']);
     paused      = false;
     stateSystem = null; gameLoop = null; entityManager = null; botController = null; charSelect = null;
-    titleScreen = makeTitleScreen();
+    titleScreen = makeTitleScreen(confirmHeld);
     phase = 'title';
   }
 
-  function makeTitleScreen() {
+  function makeTitleScreen(actionAlreadyHeld = false) {
     return new TitleScreen((mode) => {
       isSinglePlay = (mode === 'single');
       charSelect   = new CharacterSelect(assets, startGame, isSinglePlay);
       phase = 'select';
-    });
+    }, actionAlreadyHeld);
   }
 
   function startGame(p1Char, p2Char) {
@@ -83,9 +85,11 @@ async function main() {
     botController = isSinglePlay ? createBotController({
       playerId: 'player2', playerSide: 'right',
       opponentId: 'player1', mapWidth: physicsMap.w,
+      serveTypes: p2Char?.serveTypes ?? ['OVERHAND', 'UNDERHAND'],
     }) : null;
-    paused = false;
-    phase  = 'game';
+    paused         = false;
+    prevShiftPause = false;
+    phase          = 'game';
   }
 
   titleScreen = makeTitleScreen();
@@ -103,8 +107,16 @@ async function main() {
       } else if (phase === 'select') {
         charSelect.tick(rawInputs);
       } else {
-        const state = stateSystem.buf;
-        if (!paused && state.phase !== 'gameover') {
+        const state      = stateSystem.buf;
+        const confirmNow = !!(rawInputs['1P_CONFIRM'] || rawInputs['2P_CONFIRM']);
+        if (paused) {
+          if (confirmNow && !prevShiftPause) goToTitle();
+          prevShiftPause = confirmNow;
+        } else if (state.phase === 'gameover') {
+          if (confirmNow && !prevShiftPause) goToTitle();
+          prevShiftPause = confirmNow;
+        } else {
+          prevShiftPause = false;
           let inputs = isSinglePlay ? mergeSingleInputs(rawInputs) : rawInputs;
           if (botController) inputs = withBotInputs(inputs, state, botController);
           const { nextState, toPlay } = gameLoop.tick(state, inputs);

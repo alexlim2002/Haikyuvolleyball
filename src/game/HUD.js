@@ -9,7 +9,7 @@ export function drawPauseOverlay(ctx, W, H) {
   ctx.font         = '18px monospace';
   ctx.fillStyle    = 'rgba(255,255,255,0.7)';
   ctx.fillText('Esc — 재개', W / 2, H / 2 + 20);
-  ctx.fillText('Shift — 타이틀로', W / 2, H / 2 + 50);
+  ctx.fillText('Enter — 타이틀로', W / 2, H / 2 + 50);
 }
 
 export function drawHUD(ctx, state, W, H, botController) {
@@ -28,7 +28,7 @@ export function drawHUD(ctx, state, W, H, botController) {
   ctx.font         = '11px monospace';
   ctx.textAlign    = 'left';
   ctx.fillStyle    = 'rgba(255,255,255,0.65)';
-  ctx.fillText('1P: AD이동 / W점프 / S리시브 / ShiftL스파이크 / AA·DD다이빙 / WW블로킹 / SS스킬  |  2P: ←→ / ↑↓ / ShiftR', 8, H - 18);
+  ctx.fillText('1P: AD이동 / W점프 / S리시브 / ShiftL스파이크 / AA·DD다이빙 / WW블로킹  |  2P: ←→ / ↑↓ / ShiftR', 8, H - 18);
 
   if (botController) {
     ctx.textAlign = 'right';
@@ -74,6 +74,6 @@ export function drawHUD(ctx, state, W, H, botController) {
     ctx.fillText(`${state.sets.p1} - ${state.sets.p2}`, W / 2, H / 2 + 30);
     ctx.font = '14px monospace';
     ctx.fillStyle = 'rgba(255,255,255,0.6)';
-    ctx.fillText('Shift — 타이틀로', W / 2, H / 2 + 72);
+    ctx.fillText('Enter — 타이틀로', W / 2, H / 2 + 72);
   }
 }

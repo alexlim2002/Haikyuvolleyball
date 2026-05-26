@@ -63,7 +63,7 @@ export function drawHitboxes(ctx, buf, entityManager) {
       }
     }
 
-    if ((es.actionType === 'SPIKE' || es.actionType === 'SKILL') && armLen > 0) {
+    if (es.actionType === 'SPIKE' && armLen > 0) {
       const armDef = bodyDefs.find(b => b.isArm);
       if (armDef) {
         const arm  = resolveBody(es.x, es.y, armDef);
