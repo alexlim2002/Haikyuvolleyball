@@ -112,7 +112,8 @@ export class GameLoop {
     }
 
     // 4. 중력
-    es.vy = applyGravity(es.vy, entity.physics.gravity);
+    const atApex = entity.physics.apexThreshold && Math.abs(es.vy) < entity.physics.apexThreshold;
+    es.vy = applyGravity(es.vy, entity.physics.gravity * (atApex ? 0.4 : 1));
 
     // 5. 이동
     es.x += es.vx;
@@ -167,7 +168,14 @@ export class GameLoop {
     // 4. 맵 경계 충돌
     for (const hit of detectVsMap(ballResolved, map)) {
       if (hit.side === 'bottom') {
-        // 바닥 = 득점 이벤트
+        const { newVelA } = resolveCollision(
+          { x: bs.vx, y: bs.vy }, ballEntity.physics.restitution,
+          { x: 0, y: 0 }, 0,
+          hit
+        );
+        bs.vx = newVelA.x;
+        bs.vy = newVelA.y;
+        bs.y += hit.ny * hit.depth;
         h.onBallHitFloor?.(state, bs.x < map.w / 2 ? 'left' : 'right');
         continue;
       }

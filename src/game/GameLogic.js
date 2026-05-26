@@ -12,42 +12,44 @@ import { playerHitboxes } from './Hitbox.js';
 // ─── 물리 상수 (1 unit = 800px) ───────────────────────────────────────────────
 const LW = 800; // LOGICAL_WIDTH
 
-const P_SPEED   = 8   / LW;
+const P_SPEED   = 5   / LW;
 const JUMP_VY   = 13  / LW;
-const DIVE_VX   = 9   / LW;
+const DIVE_VX   = 18  / LW;
 const DIVE_VY   = 3   / LW;
 const BLOCK_VY  = 9.1 / LW;
 
-const P_GRAVITY    = 0.5 / LW;
+const P_GRAVITY      = 0.5  / LW;
+const APEX_THRESHOLD = 2    / LW;
 const BALL_GRAVITY = 0.05 / LW;
 const BALL_REST    = 0.9;
 
 const BALL_R      = 18  / LW;
 const ARM_LEN     = 35  / LW;
 const RECEIVE_R   = 55  / LW;
-const P_SIZE      = { w: 48 / LW, h: 70 / LW };
+const P_SIZE      = { w: 80 / LW, h: 80 / LW };
 const NET_SIZE    = { w: 10 / LW, h: 150 / LW };
 
 const WIN_SCORE         = 15;
 const WIN_SETS          = 2;
 const POINT_PAUSE_TICKS = 0;
 
-// ─── 스프라이트 레이아웃 (player.img64.svg, 64px 프레임) ─────────────────────
+// ─── 스프라이트 레이아웃 (히나타쇼요.png, 8열×3행 1D) ───────────────────────
 const PLAYER_SPRITES = {
-  IDLE:    { start: 0,  count: 1 },
-  RUN:     { start: 1,  count: 1 },
-  JUMP:    { start: 2,  count: 1 },
-  SPIKE:   { start: 3,  count: 3 },
-  BLOCK:   { start: 6,  count: 2 },
-  DIVE:    { start: 8,  count: 2 },
-  RECEIVE: { start: 10, count: 2 },
-  SKILL:   { start: 12, count: 3 },
+  IDLE:    { right: { start: 0,  count: 1 }, left: { start: 1,  count: 1 } },
+  RUN:     { right: { start: 2,  count: 2 }, left: { start: 4,  count: 2 } },
+  JUMP:    { right: { start: 6,  count: 1 }, left: { start: 7,  count: 1 } },
+  BLOCK:   { right: { start: 8,  count: 1 }, left: { start: 9,  count: 1 } },
+  SERVE:   { right: { start: 10, count: 2 }, left: { start: 12, count: 2 } },
+  RECEIVE: { right: { start: 14, count: 1 }, left: { start: 15, count: 1 } },
+  SPIKE:   { right: { start: 16, count: 2 }, left: { start: 18, count: 2 } },
+  DIVE:    { right: { start: 20, count: 1 }, left: { start: 21, count: 1 } },
+  SKILL:   { right: { start: 0,  count: 1 }, left: { start: 1,  count: 1 } },
 };
 
 function makePlayerActions() {
   return {
     IDLE:    { duration: 0,  sprites: PLAYER_SPRITES.IDLE,    getHitbox: playerHitboxes.IDLE    },
-    RUN:     { duration: 0,  sprites: PLAYER_SPRITES.RUN,     getHitbox: playerHitboxes.RUN     },
+    RUN:     { duration: 0,  sprites: PLAYER_SPRITES.RUN,     frameMs: 150, getHitbox: playerHitboxes.RUN     },
     JUMP:    { duration: 0,  sprites: PLAYER_SPRITES.JUMP,    getHitbox: playerHitboxes.JUMP    },
     SPIKE:   { duration: 10, sprites: PLAYER_SPRITES.SPIKE,   getHitbox: playerHitboxes.SPIKE   },
     BLOCK:   { duration: 15, sprites: PLAYER_SPRITES.BLOCK,   getHitbox: playerHitboxes.BLOCK   },
@@ -58,7 +60,7 @@ function makePlayerActions() {
 }
 
 // ─── 물리맵 ───────────────────────────────────────────────────────────────────
-export const physicsMap = new PhysicsMap(1, 0.5625);
+export const physicsMap = new PhysicsMap(1, 0.5625 * 1.5);
 
 // ─── 엔티티 등록 + 초기 상태 반환 ────────────────────────────────────────────
 export function initEntities(entityManager) {
@@ -100,7 +102,7 @@ export function initEntities(entityManager) {
     assetId:    'player',
     origin:     'bottom-center',
     size:       P_SIZE,
-    physics:    { gravity: P_GRAVITY, restitution: 0 },
+    physics:    { gravity: P_GRAVITY, restitution: 0, apexThreshold: APEX_THRESHOLD },
     armLength:  ARM_LEN,
     actions:    makePlayerActions(),
   });
@@ -112,7 +114,7 @@ export function initEntities(entityManager) {
     assetId:    'player',
     origin:     'bottom-center',
     size:       P_SIZE,
-    physics:    { gravity: P_GRAVITY, restitution: 0 },
+    physics:    { gravity: P_GRAVITY, restitution: 0, apexThreshold: APEX_THRESHOLD },
     armLength:  ARM_LEN,
     actions:    makePlayerActions(),
   });
@@ -217,6 +219,7 @@ export const handlers = {
 
   onBallHitFloor(state, side) {
     if (state.phase !== 'rally') return;
+    if (window.noScore) return;
     const scorer = side === 'left' ? 'p2' : 'p1';
     state.score[scorer]++;
     state.lastScorer = scorer;

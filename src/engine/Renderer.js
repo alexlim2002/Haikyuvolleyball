@@ -9,13 +9,39 @@
 
 const LOGICAL_WIDTH  = 800;
 const LOGICAL_HEIGHT = 450;
+const TPS = 60;
+
+function resolveSprites(sprites, facing) {
+  if (sprites?.right !== undefined) {
+    return facing === -1 ? sprites.left : sprites.right;
+  }
+  return sprites;
+}
+
+const AIR_OVERRIDE = new Set(['IDLE', 'RUN', 'RECEIVE']);
 
 function computeSpriteIndex(entity, state) {
-  const actionDef = entity.actions?.[state.actionType] ?? entity.actions?.DEFAULT;
+  let actionType = state.actionType;
+  if (entity.role === 'player' && !state.onGround && AIR_OVERRIDE.has(actionType)) {
+    actionType = 'JUMP';
+  }
+
+  const actionDef = entity.actions?.[actionType] ?? entity.actions?.DEFAULT;
   if (!actionDef?.sprites) return 0;
-  const { start, count } = actionDef.sprites;
-  if (count <= 1 || !state.actionDuration) return start;
-  return start + Math.round((count - 1) * state.actionTick / state.actionDuration);
+
+  const { start, count } = resolveSprites(actionDef.sprites, state.facing);
+  if (count <= 1) return start;
+
+  if (state.actionDuration > 0) {
+    return start + Math.round((count - 1) * state.actionTick / state.actionDuration);
+  }
+
+  if (actionDef.frameMs) {
+    const frameTicks = actionDef.frameMs * TPS / 1000;
+    return start + Math.floor(state.actionTick / frameTicks) % count;
+  }
+
+  return start;
 }
 
 export class Renderer {
@@ -65,7 +91,8 @@ export class Renderer {
       if (!asset) continue;
 
       const { x, y, w, h } = this.#toCanvasRect(entity, state);
-      const flipH = state.facing === -1;
+      const sprites = entity.actions?.[state.actionType]?.sprites ?? entity.actions?.DEFAULT?.sprites;
+      const flipH = sprites?.right === undefined && state.facing === -1;
 
       if (Array.isArray(asset)) {
         const frame = asset[computeSpriteIndex(entity, state)];

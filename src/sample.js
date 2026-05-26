@@ -74,7 +74,7 @@ async function main() {
 
     renderer.clear();
     renderer.draw(stateSystem.buf, entityManager);
-    drawHitboxes(ctx, stateSystem.buf, entityManager);
+    if (window.showHitboxes) drawHitboxes(ctx, stateSystem.buf, entityManager);
     drawHUD(ctx, stateSystem.buf, renderer.width, renderer.height);
     requestAnimationFrame(rafLoop);
   }
@@ -204,7 +204,7 @@ function drawHUD(ctx, state, W, H) {
   ctx.font         = '11px monospace';
   ctx.textAlign    = 'left';
   ctx.fillStyle    = 'rgba(255,255,255,0.65)';
-  ctx.fillText('1P: ←→이동 / ↑점프 / ↓리시브 / Shift스파이크 / ←←다이빙 / ↑↑블로킹 / ↓↓스킬', 8, H - 18);
+  ctx.fillText('1P: ←→이동 / ↑점프 / ↓리시브 / Shift스파이크 / ←←or→→다이빙 / ↑↑블로킹 / ↓↓스킬  |  2P: WASD / ShiftLeft', 8, H - 18);
 
   // 득점 오버레이
   if (state.phase === 'point') {
@@ -232,4 +232,6 @@ function drawHUD(ctx, state, W, H) {
   }
 }
 
+window.showHitboxes = false;
+window.noScore = false;
 main();

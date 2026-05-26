@@ -252,13 +252,28 @@ function drawDive(ctx, cx, i) {
   ctx.beginPath(); ctx.moveTo(cx + 16, cy + 3); ctx.lineTo(cx + 28, cy + 10); ctx.stroke();
 }
 
+// ─── PNG 스프라이트 시트 → 1D 프레임 배열 ────────────────────────────────────
+async function loadImageFrames(src, cols) {
+  const blob = await fetch(src).then(r => r.blob());
+  const img  = await createImageBitmap(blob);
+  const size = Math.floor(img.width / cols);
+  const rows = Math.floor(img.height / size);
+  const out  = [];
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      out.push({ image: img, sx: col * size, sy: row * size, sw: size, sh: size });
+    }
+  }
+  return out;
+}
+
 // ─── 공개 API ─────────────────────────────────────────────────────────────────
 export async function generateAssets() {
   const [court, net, ball, player] = await Promise.all([
     genCourt(),
     genNet(),
     genBall(),
-    genPlayer(),
+    loadImageFrames('../asset/character/히나타쇼요.png', 8),
   ]);
   return { court, net, ball, player };
 }
