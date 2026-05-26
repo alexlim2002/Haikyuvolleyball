@@ -42,12 +42,11 @@ async function main() {
   const renderer  = new Renderer(canvas, assets);
   const inputGen  = initInputSystem({ keyboardMapping: KEYS, touchMapping: {} })();
 
-  let phase          = 'title';
-  let isSinglePlay   = false;
-  let paused         = false;
-  let prevShiftPause = false;
-  let titleScreen    = null;
-  let charSelect     = null;
+  let phase        = 'title';
+  let isSinglePlay = false;
+  let paused       = false;
+  let titleScreen  = null;
+  let charSelect   = null;
   let stateSystem, gameLoop, entityManager, botController;
   let lastTime    = performance.now();
   let accumulator = 0;
@@ -57,16 +56,15 @@ async function main() {
       if (phase === 'select') goToTitle();
       else if (phase === 'game') paused = !paused;
     }
+    if ((e.code === 'ShiftLeft' || e.code === 'ShiftRight') && phase === 'game') {
+      if (paused || stateSystem?.buf?.phase === 'gameover') goToTitle();
+    }
   });
 
   function goToTitle() {
-    paused        = false;
-    stateSystem   = null;
-    gameLoop      = null;
-    entityManager = null;
-    botController = null;
-    charSelect    = null;
-    titleScreen   = makeTitleScreen();
+    paused      = false;
+    stateSystem = null; gameLoop = null; entityManager = null; botController = null; charSelect = null;
+    titleScreen = makeTitleScreen();
     phase = 'title';
   }
 
@@ -86,9 +84,8 @@ async function main() {
       playerId: 'player2', playerSide: 'right',
       opponentId: 'player1', mapWidth: physicsMap.w,
     }) : null;
-    paused         = false;
-    prevShiftPause = false;
-    phase = 'game';
+    paused = false;
+    phase  = 'game';
   }
 
   titleScreen = makeTitleScreen();
@@ -106,19 +103,10 @@ async function main() {
       } else if (phase === 'select') {
         charSelect.tick(rawInputs);
       } else {
-        const state   = stateSystem.buf;
-        const shiftNow = !!(rawInputs['1P_ACTION'] || rawInputs['2P_ACTION']);
-
-        if (paused) {
-          // 일시정지 중 Shift → 타이틀
-          if (shiftNow && !prevShiftPause) goToTitle();
-          prevShiftPause = shiftNow;
-        } else if (state.phase === 'gameover') {
-          if (shiftNow && !prevShiftPause) goToTitle();
-          prevShiftPause = shiftNow;
-        } else {
-          prevShiftPause = false;
-          const inputs = botController ? withBotInputs(rawInputs, state, botController) : rawInputs;
+        const state = stateSystem.buf;
+        if (!paused && state.phase !== 'gameover') {
+          let inputs = isSinglePlay ? mergeSingleInputs(rawInputs) : rawInputs;
+          if (botController) inputs = withBotInputs(inputs, state, botController);
           const { nextState, toPlay } = gameLoop.tick(state, inputs);
           stateSystem.setState(nextState);
           effector.play(toPlay);
@@ -144,11 +132,22 @@ async function main() {
   requestAnimationFrame(rafLoop);
 }
 
-function withBotInputs(rawInputs, state, botController) {
-  const inputs = { ...rawInputs };
+const INPUT_SUFFIXES = ['LEFT','RIGHT','UP','DOWN','ACTION','DOUBLE_LEFT','DOUBLE_RIGHT','DOUBLE_UP','DOUBLE_DOWN'];
+
+// 싱글 플레이: 2P 키 입력을 1P에도 반영
+function mergeSingleInputs(raw) {
+  const merged = { ...raw };
+  for (const s of INPUT_SUFFIXES) {
+    if (raw[`2P_${s}`]) merged[`1P_${s}`] = true;
+  }
+  return merged;
+}
+
+function withBotInputs(inputs, state, botController) {
+  const next = { ...inputs };
   const botInputs = botController.makeInputs(state);
-  for (const key in botInputs) inputs[key] = botInputs[key];
-  return inputs;
+  for (const key in botInputs) next[key] = botInputs[key];
+  return next;
 }
 
 window.showHitboxes = false;

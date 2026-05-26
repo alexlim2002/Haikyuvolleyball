@@ -285,7 +285,8 @@ export async function generateAssets() {
 
   const charEntries = await Promise.all(
     CHARACTERS.map(async char => {
-      const frames = await loadImageFrames(`../asset/character/${char.file}`, 127);
+      const url    = new URL(`../asset/character/${char.file}`, import.meta.url).href;
+      const frames = await loadImageFrames(url, 127);
       return [char.id, frames];
     })
   );

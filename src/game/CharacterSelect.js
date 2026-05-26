@@ -12,8 +12,8 @@ export class CharacterSelect {
   #p2Idx = 1;
   #p1Done = false;
   #p2Done = false;
-  #prev1 = false;
-  #prev2 = false;
+  #prev1 = true;
+  #prev2 = true;
   #prevL1 = false; #prevR1 = false;
   #prevL2 = false; #prevR2 = false;
   #onComplete;
