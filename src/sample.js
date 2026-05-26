@@ -14,7 +14,9 @@ import { GameLoop }        from './engine/GameLoop.js';
 import { physicsMap, initEntities, handlers } from './game/GameLogic.js';
 import { generateAssets }  from './game/SpriteGen.js';
 import { resolveBody }     from './engine/Physics.js';
-import { CharacterSelect } from './game/CharacterSelect.js';
+import { CharacterSelect }    from './game/CharacterSelect.js';
+import { TitleScreen }        from './game/TitleScreen.js';
+import { createBotController } from './game/ai/BotController.js';
 
 // ─── 키 매핑 ──────────────────────────────────────────────────────────────────
 const KEYS = {
@@ -50,22 +52,33 @@ async function main() {
   const inputsOfThisTick = initInputSystem({ keyboardMapping: KEYS, touchMapping: {} });
   const inputGen         = inputsOfThisTick();
 
-  let phase      = 'select';
+  let phase      = 'title';
   let charSelect = null;
-  let stateSystem, gameLoop, entityManager;
+  let stateSystem, gameLoop, entityManager, botController;
   let lastTime   = performance.now();
   let accumulator = 0;
+  let isSinglePlay = false;
 
   function startGame(p1Char, p2Char) {
     entityManager = new EntityManager();
     const initialState = initEntities(entityManager, p1Char, p2Char);
     stateSystem = new StateSystem(initialState);
     gameLoop    = new GameLoop({ entityManager, physicsMap, handlers });
+    botController = isSinglePlay ? createBotController({
+      playerId: 'player2',
+      playerSide: 'right',
+      opponentId: 'player1',
+      mapWidth: physicsMap.w,
+    }) : null;
     phase = 'game';
   }
 
-  charSelect = new CharacterSelect(assets, (p1Char, p2Char) => {
-    startGame(p1Char, p2Char);
+  const titleScreen = new TitleScreen((mode) => {
+    isSinglePlay = (mode === 'single');
+    charSelect = new CharacterSelect(assets, (p1Char, p2Char) => {
+      startGame(p1Char, p2Char);
+    });
+    phase = 'select';
   });
 
   function rafLoop(timestamp) {
@@ -74,13 +87,16 @@ async function main() {
 
     while (accumulator >= TICK_MS) {
       accumulator -= TICK_MS;
-      const { value: inputs } = inputGen.next();
+      const { value: rawInputs } = inputGen.next();
 
-      if (phase === 'select') {
-        charSelect.tick(inputs);
+      if (phase === 'title') {
+        titleScreen.tick(rawInputs);
+      } else if (phase === 'select') {
+        charSelect.tick(rawInputs);
       } else {
         const state = stateSystem.buf;
         if (state.phase !== 'gameover') {
+          const inputs = botController ? withBotInputs(rawInputs, state, botController) : rawInputs;
           const { nextState, toPlay } = gameLoop.tick(state, inputs);
           stateSystem.setState(nextState);
           effector.play(toPlay);
@@ -89,18 +105,27 @@ async function main() {
     }
 
     renderer.clear();
-    if (phase === 'select') {
+    if (phase === 'title') {
+      titleScreen.draw(ctx);
+    } else if (phase === 'select') {
       charSelect.draw(ctx);
     } else {
       renderer.draw(stateSystem.buf, entityManager);
       if (window.showHitboxes) drawHitboxes(ctx, stateSystem.buf, entityManager);
-      drawHUD(ctx, stateSystem.buf, renderer.width, renderer.height);
+      drawHUD(ctx, stateSystem.buf, renderer.width, renderer.height, botController);
     }
 
     requestAnimationFrame(rafLoop);
   }
 
   requestAnimationFrame(rafLoop);
+}
+
+function withBotInputs(inputs, state, botController) {
+  const next = { ...inputs };
+  const botInputs = botController.makeInputs(state);
+  for (const key in botInputs) next[key] = botInputs[key];
+  return next;
 }
 
 // ─── 히트박스 디버그 렌더 ────────────────────────────────────────────────────
@@ -245,7 +270,7 @@ function drawHitboxes(ctx, buf, entityManager) {
 }
 
 // ─── HUD (캔버스 직접 렌더) ───────────────────────────────────────────────────
-function drawHUD(ctx, state, W, H) {
+function drawHUD(ctx, state, W, H, botController) {
   // 점수
   ctx.fillStyle    = 'rgba(0,0,0,0.45)';
   ctx.fillRect(W / 2 - 80, 4, 160, 46);
@@ -262,6 +287,11 @@ function drawHUD(ctx, state, W, H) {
   ctx.textAlign    = 'left';
   ctx.fillStyle    = 'rgba(255,255,255,0.65)';
   ctx.fillText('1P: ←→이동 / ↑점프 / ↓리시브 / Shift스파이크 / ←←or→→다이빙 / ↑↑블로킹 / ↓↓스킬  |  2P: WASD / ShiftLeft', 8, H - 18);
+
+  if (botController) {
+    ctx.textAlign = 'right';
+    ctx.fillText(`2P AI: ${botController.getCurrentTypeLabel()}`, W - 8, H - 18);
+  }
 
   // 서브 오버레이
   if (state.phase === 'serve') {

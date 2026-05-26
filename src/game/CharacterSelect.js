@@ -7,6 +7,7 @@ const START_X = (LW - TOTAL_W) / 2;
 
 export class CharacterSelect {
   #assets;
+  #singlePlay;
   #p1Idx = 0;
   #p2Idx = 1;
   #p1Done = false;
@@ -17,15 +18,21 @@ export class CharacterSelect {
   #prevL2 = false; #prevR2 = false;
   #onComplete;
 
-  constructor(assets, onComplete) {
+  constructor(assets, onComplete, singlePlay = false) {
     this.#assets = assets;
     this.#onComplete = onComplete;
+    this.#singlePlay = singlePlay;
+    if (singlePlay) {
+      // AI 캐릭터 미리 랜덤 결정
+      this.#p2Idx = Math.floor(Math.random() * CHARACTERS.length);
+      this.#p2Done = true;
+    }
   }
 
   tick(inputs) {
     if (this.#p1Done && this.#p2Done) return;
 
-    // 1P: Arrow keys + ShiftRight
+    // 1P: WASD + ShiftLeft
     const L1 = !!inputs['1P_LEFT'];
     const R1 = !!inputs['1P_RIGHT'];
     const A1 = !!inputs['1P_ACTION'];
@@ -36,16 +43,18 @@ export class CharacterSelect {
     }
     this.#prevL1 = L1; this.#prevR1 = R1; this.#prev1 = A1;
 
-    // 2P: WASD + ShiftLeft
-    const L2 = !!inputs['2P_LEFT'];
-    const R2 = !!inputs['2P_RIGHT'];
-    const A2 = !!inputs['2P_ACTION'];
-    if (!this.#p2Done) {
-      if (L2 && !this.#prevL2) this.#p2Idx = (this.#p2Idx - 1 + CHARACTERS.length) % CHARACTERS.length;
-      if (R2 && !this.#prevR2) this.#p2Idx = (this.#p2Idx + 1) % CHARACTERS.length;
-      if (A2 && !this.#prev2) this.#p2Done = true;
+    // 2P: ArrowKeys + ShiftRight (멀티 전용)
+    if (!this.#singlePlay) {
+      const L2 = !!inputs['2P_LEFT'];
+      const R2 = !!inputs['2P_RIGHT'];
+      const A2 = !!inputs['2P_ACTION'];
+      if (!this.#p2Done) {
+        if (L2 && !this.#prevL2) this.#p2Idx = (this.#p2Idx - 1 + CHARACTERS.length) % CHARACTERS.length;
+        if (R2 && !this.#prevR2) this.#p2Idx = (this.#p2Idx + 1) % CHARACTERS.length;
+        if (A2 && !this.#prev2) this.#p2Done = true;
+      }
+      this.#prevL2 = L2; this.#prevR2 = R2; this.#prev2 = A2;
     }
-    this.#prevL2 = L2; this.#prevR2 = R2; this.#prev2 = A2;
 
     if (this.#p1Done && this.#p2Done) {
       this.#onComplete(CHARACTERS[this.#p1Idx], CHARACTERS[this.#p2Idx]);
@@ -53,11 +62,9 @@ export class CharacterSelect {
   }
 
   draw(ctx) {
-    // 배경
     ctx.fillStyle = '#1a2a3a';
     ctx.fillRect(0, 0, LW, LH);
 
-    // 타이틀
     ctx.fillStyle = '#fff';
     ctx.font = 'bold 28px monospace';
     ctx.textAlign = 'center';
@@ -66,7 +73,11 @@ export class CharacterSelect {
 
     ctx.font = '14px monospace';
     ctx.fillStyle = 'rgba(255,255,255,0.6)';
-    ctx.fillText('1P: ←→ 이동 / ShiftRight 선택    2P: A/D 이동 / ShiftLeft 선택', LW / 2, 60);
+    if (this.#singlePlay) {
+      ctx.fillText('1P: A/D 이동  /  ShiftLeft 선택', LW / 2, 60);
+    } else {
+      ctx.fillText('1P: A/D / ShiftLeft    2P: ←→ / ShiftRight', LW / 2, 60);
+    }
 
     const CARDS_Y = 110;
 
@@ -74,15 +85,13 @@ export class CharacterSelect {
       const char = CHARACTERS[i];
       const cx = START_X + i * (CARD_W + CARD_GAP);
       const is1P = i === this.#p1Idx;
-      const is2P = i === this.#p2Idx;
+      const is2P = !this.#singlePlay && i === this.#p2Idx;
 
-      // 카드 배경
       ctx.fillStyle = '#2a3f55';
       ctx.beginPath();
       ctx.roundRect(cx, CARDS_Y, CARD_W, CARD_H, 8);
       ctx.fill();
 
-      // 테두리 (1P=파란색, 2P=주황색, 둘 다=양쪽)
       if (is1P) {
         ctx.strokeStyle = this.#p1Done ? '#44aaff' : '#88ccff';
         ctx.lineWidth = 3;
@@ -96,13 +105,11 @@ export class CharacterSelect {
         ctx.stroke();
       }
 
-      // 스프라이트 (idle frame 0)
       const frames = this.#assets[char.id];
       if (frames && frames.length > 0) {
         const f = frames[0];
         ctx.drawImage(f.image, f.sx, f.sy, f.sw, f.sh, cx + 4, CARDS_Y + 8, CARD_W - 8, CARD_W - 8);
       } else {
-        // 스프라이트 없을 때 빈칸 표시
         ctx.fillStyle = '#3a5a7a';
         ctx.fillRect(cx + 4, CARDS_Y + 8, CARD_W - 8, CARD_W - 8);
         ctx.fillStyle = 'rgba(255,255,255,0.3)';
@@ -112,14 +119,12 @@ export class CharacterSelect {
         ctx.fillText('?', cx + CARD_W / 2, CARDS_Y + 8 + (CARD_W - 8) / 2);
       }
 
-      // 이름
       ctx.fillStyle = '#fff';
-      ctx.font = 'bold 14px monospace';
+      ctx.font = 'bold 13px monospace';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
-      ctx.fillText(char.name, cx + CARD_W / 2, CARDS_Y + CARD_W);
+      ctx.fillText(char.fullName ?? char.name, cx + CARD_W / 2, CARDS_Y + CARD_W);
 
-      // 서브 타입 뱃지
       const badgeY = CARDS_Y + CARD_W + 20;
       ctx.font = '10px monospace';
       for (let j = 0; j < char.serveTypes.length; j++) {
@@ -135,7 +140,6 @@ export class CharacterSelect {
         ctx.fillText(label, bx + 16, badgeY + 7);
       }
 
-      // 커서 레이블
       if (is1P) {
         ctx.fillStyle = this.#p1Done ? '#44aaff' : '#88ccff';
         ctx.font = 'bold 13px monospace';
@@ -150,6 +154,16 @@ export class CharacterSelect {
         ctx.textBaseline = 'top';
         ctx.fillText(this.#p2Done ? '2P ✓' : '▲ 2P', cx + CARD_W / 2, CARDS_Y + CARD_H + 4);
       }
+    }
+
+    // 싱글 모드: AI 캐릭터 안내
+    if (this.#singlePlay) {
+      const aiChar = CHARACTERS[this.#p2Idx];
+      ctx.fillStyle = 'rgba(255,255,255,0.5)';
+      ctx.font = '13px monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText(`AI 상대: ${aiChar.fullName ?? aiChar.name} (랜덤)`, LW / 2, LH - 14);
     }
   }
 }

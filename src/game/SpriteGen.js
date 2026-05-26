@@ -256,17 +256,23 @@ function drawDive(ctx, cx, i) {
 
 // ─── PNG 스프라이트 시트 → 1D 프레임 배열 ────────────────────────────────────
 async function loadImageFrames(src, frameSize) {
-  const blob = await fetch(src).then(r => r.blob());
-  const img  = await createImageBitmap(blob);
-  const cols = Math.floor(img.width  / frameSize);
-  const rows = Math.floor(img.height / frameSize);
-  const out  = [];
-  for (let row = 0; row < rows; row++) {
-    for (let col = 0; col < cols; col++) {
-      out.push({ image: img, sx: col * frameSize, sy: row * frameSize, sw: frameSize, sh: frameSize });
+  try {
+    const res = await fetch(src);
+    if (!res.ok) { console.warn(`[SpriteGen] ${src} — HTTP ${res.status}`); return []; }
+    const img  = await createImageBitmap(await res.blob());
+    const cols = Math.floor(img.width  / frameSize);
+    const rows = Math.floor(img.height / frameSize);
+    const out  = [];
+    for (let row = 0; row < rows; row++) {
+      for (let col = 0; col < cols; col++) {
+        out.push({ image: img, sx: col * frameSize, sy: row * frameSize, sw: frameSize, sh: frameSize });
+      }
     }
+    return out;
+  } catch (e) {
+    console.warn(`[SpriteGen] ${src} 로드 실패:`, e);
+    return [];
   }
-  return out;
 }
 
 // ─── 공개 API ─────────────────────────────────────────────────────────────────
