@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="450" viewBox="0 0 800 450">
+  <!-- Sky -->
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#4a9edd"/>
+      <stop offset="100%" stop-color="#87ceeb"/>
+    </linearGradient>
+    <linearGradient id="floor" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#d4a96a"/>
+      <stop offset="100%" stop-color="#c8935a"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="370" fill="url(#sky)"/>
+  <!-- Court floor -->
+  <rect y="370" width="800" height="80" fill="url(#floor)"/>
+  <!-- Court lines -->
+  <rect y="370" width="800" height="3" fill="#b8823a"/>
+  <!-- Center line (hidden behind net) -->
+  <line x1="400" y1="370" x2="400" y2="450" stroke="#c8935a" stroke-width="2" stroke-dasharray="6,4" opacity="0.5"/>
+  <!-- Side boundary lines -->
+  <line x1="50" y1="370" x2="50" y2="450" stroke="#e8b87a" stroke-width="2"/>
+  <line x1="750" y1="370" x2="750" y2="450" stroke="#e8b87a" stroke-width="2"/>
+  <!-- Back lines -->
+  <line x1="50" y1="373" x2="750" y2="373" stroke="#e8b87a" stroke-width="1.5"/>
+</svg>

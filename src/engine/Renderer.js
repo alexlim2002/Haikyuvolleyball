@@ -9,6 +9,40 @@
 
 const LOGICAL_WIDTH  = 800;
 const LOGICAL_HEIGHT = 450;
+const TPS = 60;
+
+function resolveSprites(sprites, facing) {
+  if (sprites?.right !== undefined) {
+    return facing === -1 ? sprites.left : sprites.right;
+  }
+  return sprites;
+}
+
+const AIR_OVERRIDE = new Set(['IDLE', 'RUN', 'RECEIVE']);
+
+function computeSpriteIndex(entity, state) {
+  let actionType = state.actionType;
+  if (entity.role === 'player' && !state.onGround && AIR_OVERRIDE.has(actionType)) {
+    actionType = 'JUMP';
+  }
+
+  const actionDef = entity.actions?.[actionType] ?? entity.actions?.DEFAULT;
+  if (!actionDef?.sprites) return 0;
+
+  const { start, count } = resolveSprites(actionDef.sprites, state.facing);
+  if (count <= 1) return start;
+
+  if (state.actionDuration > 0) {
+    return start + Math.round((count - 1) * state.actionTick / state.actionDuration);
+  }
+
+  if (actionDef.frameMs) {
+    const frameTicks = actionDef.frameMs * TPS / 1000;
+    return start + Math.floor(state.actionTick / frameTicks) % count;
+  }
+
+  return start;
+}
 
 export class Renderer {
   #canvas;
@@ -56,15 +90,27 @@ export class Renderer {
       const asset = this.#assets[entity.assetId];
       if (!asset) continue;
 
+      const { x, y, w, h } = this.#toCanvasRect(entity, state);
+      const sprites = entity.actions?.[state.actionType]?.sprites ?? entity.actions?.DEFAULT?.sprites;
+      const flipH = sprites?.right === undefined && state.facing === -1;
+
       if (Array.isArray(asset)) {
-        // 스프라이트
-        const frame = asset[entity.spriteIndex ?? 0];
-        this.#drawSprite(frame, state.x, state.y, state.w, state.h, entity.flipH, entity.flipV);
+        const frame = asset[computeSpriteIndex(entity, state)];
+        this.#drawSprite(frame, x, y, w, h, flipH, entity.flipV);
       } else {
-        // 단일 이미지
-        this.#drawImage(asset, state.x, state.y, state.w, state.h, entity.flipH, entity.flipV);
+        this.#drawImage(asset, x, y, w, h, flipH, entity.flipV);
       }
     }
+  }
+
+  #toCanvasRect(entity, state) {
+    const w  = (entity.size?.w ?? 0) * LOGICAL_WIDTH;
+    const h  = (entity.size?.h ?? 0) * LOGICAL_WIDTH;
+    const cx = state.x * LOGICAL_WIDTH;
+    const cy = LOGICAL_HEIGHT - state.y * LOGICAL_WIDTH;
+    const x  = cx - w / 2;
+    const y  = entity.origin === 'center' ? cy - h / 2 : cy - h;
+    return { x, y, w, h };
   }
 
   #drawSprite(frame, x, y, w, h, flipH, flipV) {

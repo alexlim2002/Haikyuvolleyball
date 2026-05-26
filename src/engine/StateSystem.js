@@ -1,26 +1,19 @@
 /**
  * StateSystem
  *
- * 게임 로직을 콜백으로 주입받아 상태 컨테이너만 관리한다.
- * 엔진은 state 구조를 알 필요 없음.
- *
- * @param {object} match
- * @param {EntityManager} entityManager
- * @param {{ initState, tick }} logic  — GameLogic 콜백 묶음
+ * 순수 상태 컨테이너. 게임 로직을 모른다.
+ * GameLoop가 매 틱 setState()로 상태를 갱신하고,
+ * Renderer가 buf로 현재 상태를 읽는다.
  */
 export class StateSystem {
-  #state = null;
-  #tick  = null;
+  #state;
 
-  constructor(match, entityManager, { initState, tick }) {
-    this.#state = initState(match, entityManager);
-    this.#tick  = tick;
+  constructor(initialState) {
+    this.#state = initialState;
   }
 
-  tick(inputs) {
-    const { nextState, toPlay } = this.#tick(this.#state, inputs);
+  setState(nextState) {
     this.#state = nextState;
-    return { toPlay };
   }
 
   get buf() {

@@ -42,9 +42,23 @@ async function loadAsset(name, url, decode) {
 }
 
 async function loadImage(url) {
+  if (url.endsWith('.svg')) return loadSVGImage(url);
   const res = await fetch(url);
   const blob = await res.blob();
   return createImageBitmap(blob);
+}
+
+function loadSVGImage(url) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = new OffscreenCanvas(img.naturalWidth, img.naturalHeight);
+      canvas.getContext('2d').drawImage(img, 0, 0);
+      createImageBitmap(canvas).then(resolve).catch(reject);
+    };
+    img.onerror = () => reject(new Error(`[AssetStore] SVG 로드 실패: ${url}`));
+    img.src = url;
+  });
 }
 
 async function loadSprite(url, size) {
