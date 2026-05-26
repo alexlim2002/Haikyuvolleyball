@@ -14,6 +14,7 @@ import { GameLoop }        from './engine/GameLoop.js';
 import { physicsMap, initEntities, handlers } from './game/GameLogic.js';
 import { generateAssets }  from './game/SpriteGen.js';
 import { resolveBody }     from './engine/Physics.js';
+import { CharacterSelect } from './game/CharacterSelect.js';
 
 // ─── 키 매핑 ──────────────────────────────────────────────────────────────────
 const KEYS = {
@@ -45,17 +46,27 @@ async function main() {
   const assets = await generateAssets();
   effector.setAssets(assets);
 
-  const renderer          = new Renderer(canvas, assets);
-  const inputsOfThisTick  = initInputSystem({ keyboardMapping: KEYS, touchMapping: {} });
-  const inputGen          = inputsOfThisTick();
+  const renderer         = new Renderer(canvas, assets);
+  const inputsOfThisTick = initInputSystem({ keyboardMapping: KEYS, touchMapping: {} });
+  const inputGen         = inputsOfThisTick();
 
-  const entityManager = new EntityManager();
-  const initialState  = initEntities(entityManager);
-  const stateSystem   = new StateSystem(initialState);
-  const gameLoop      = new GameLoop({ entityManager, physicsMap, handlers });
-
+  let phase      = 'select';
+  let charSelect = null;
+  let stateSystem, gameLoop, entityManager;
   let lastTime   = performance.now();
   let accumulator = 0;
+
+  function startGame(p1Char, p2Char) {
+    entityManager = new EntityManager();
+    const initialState = initEntities(entityManager, p1Char, p2Char);
+    stateSystem = new StateSystem(initialState);
+    gameLoop    = new GameLoop({ entityManager, physicsMap, handlers });
+    phase = 'game';
+  }
+
+  charSelect = new CharacterSelect(assets, (p1Char, p2Char) => {
+    startGame(p1Char, p2Char);
+  });
 
   function rafLoop(timestamp) {
     accumulator += Math.min(timestamp - lastTime, 50);
@@ -63,19 +74,29 @@ async function main() {
 
     while (accumulator >= TICK_MS) {
       accumulator -= TICK_MS;
-      const state = stateSystem.buf;
-      if (state.phase !== 'gameover') {
-        const { value: inputs } = inputGen.next();
-        const { nextState, toPlay } = gameLoop.tick(state, inputs);
-        stateSystem.setState(nextState);
-        effector.play(toPlay);
+      const { value: inputs } = inputGen.next();
+
+      if (phase === 'select') {
+        charSelect.tick(inputs);
+      } else {
+        const state = stateSystem.buf;
+        if (state.phase !== 'gameover') {
+          const { nextState, toPlay } = gameLoop.tick(state, inputs);
+          stateSystem.setState(nextState);
+          effector.play(toPlay);
+        }
       }
     }
 
     renderer.clear();
-    renderer.draw(stateSystem.buf, entityManager);
-    if (window.showHitboxes) drawHitboxes(ctx, stateSystem.buf, entityManager);
-    drawHUD(ctx, stateSystem.buf, renderer.width, renderer.height);
+    if (phase === 'select') {
+      charSelect.draw(ctx);
+    } else {
+      renderer.draw(stateSystem.buf, entityManager);
+      if (window.showHitboxes) drawHitboxes(ctx, stateSystem.buf, entityManager);
+      drawHUD(ctx, stateSystem.buf, renderer.width, renderer.height);
+    }
+
     requestAnimationFrame(rafLoop);
   }
 

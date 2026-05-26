@@ -18,8 +18,8 @@ const DIVE_VX   = 18  / LW;
 const DIVE_VY   = 3   / LW;
 const BLOCK_VY  = 9.1 / LW;
 
-const TOSS_VY            = 6   / LW;
-const SERVE_TOSS_EXTRA_G = 0.1 / LW;  // 토스 중 추가 중력 (체공시간 단축)
+const TOSS_VY            = 12  / LW;
+const SERVE_TOSS_EXTRA_G = 0.2 / LW;  // 토스 중 추가 중력 (체공시간 단축)
 const SERVE_BALL_OFFSET  = 30  / LW;  // 공이 서버 앞쪽에 위치하는 거리
 const SERVE_SPEED_MIN = 10 / LW;
 const SERVE_SPEED_MAX = 18 / LW;
@@ -74,7 +74,7 @@ function makePlayerActions() {
 export const physicsMap = new PhysicsMap(1, 0.5625);
 
 // ─── 엔티티 등록 + 초기 상태 반환 ────────────────────────────────────────────
-export function initEntities(entityManager) {
+export function initEntities(entityManager, p1Char, p2Char) {
   entityManager.register('court', {
     type:    'bg',
     role:    'bg',
@@ -110,26 +110,26 @@ export function initEntities(entityManager) {
     type:       'entity',
     role:       'player',
     playerSide: 'left',
-    assetId:    'player',
+    assetId:    p1Char?.id ?? 'hinata',
     origin:     'bottom-center',
     size:       P_SIZE,
     physics:    { gravity: P_GRAVITY, restitution: 0, apexThreshold: APEX_THRESHOLD },
     armLength:  ARM_LEN,
     actions:    makePlayerActions(),
-    serveTypes: ['UNDERHAND'],
+    serveTypes: p1Char?.serveTypes ?? ['UNDERHAND'],
   });
 
   entityManager.register('player2', {
     type:       'entity',
     role:       'player',
     playerSide: 'right',
-    assetId:    'player',
+    assetId:    p2Char?.id ?? 'hinata',
     origin:     'bottom-center',
     size:       P_SIZE,
     physics:    { gravity: P_GRAVITY, restitution: 0, apexThreshold: APEX_THRESHOLD },
     armLength:  ARM_LEN,
     actions:    makePlayerActions(),
-    serveTypes: ['UNDERHAND'],
+    serveTypes: p2Char?.serveTypes ?? ['UNDERHAND'],
   });
 
   entityManager.register('ball', {
@@ -158,8 +158,8 @@ function makeInitialState(serveLeft, score, sets) {
   return {
     court:   { x: 0.5,  y: 0 },
     net:     { x: 0.5,  y: 0, vx: 0, vy: 0 },
-    player1: { x: serveLeft ? sx : 0.25, y: 0, vx: 0, vy: 0, facing:  1, onGround: true, actionType: 'IDLE', actionTick: 0, actionDuration: 0, prevAction: false, noBallCollide: serveLeft },
-    player2: { x: serveLeft ? 0.75 : sx, y: 0, vx: 0, vy: 0, facing: -1, onGround: true, actionType: 'IDLE', actionTick: 0, actionDuration: 0, prevAction: false, noBallCollide: !serveLeft },
+    player1: { x: serveLeft ? sx : 0.25, y: 0, vx: 0, vy: 0, facing:  1, onGround: true, actionType: 'IDLE', actionTick: 0, actionDuration: 0, prevAction: false, noBallCollide: serveLeft,  serveBuffer: 0 },
+    player2: { x: serveLeft ? 0.75 : sx, y: 0, vx: 0, vy: 0, facing: -1, onGround: true, actionType: 'IDLE', actionTick: 0, actionDuration: 0, prevAction: false, noBallCollide: !serveLeft, serveBuffer: 0 },
     ball:    { x: sx + (serveLeft ? 1 : -1) * SERVE_BALL_OFFSET, y: P_SIZE.h, vx: 0, vy: 0, actionRangeCooldown: 0 },
     phase:      'serve',
     serveStep:  'ready',   // 'ready' → 'tossed'
@@ -168,7 +168,7 @@ function makeInitialState(serveLeft, score, sets) {
     serveTossY: 0,
     score:      score ?? { p1: 0, p2: 0 },
     sets:       sets  ?? { p1: 0, p2: 0 },
-    lastScorer: serveLeft ? 'p2' : 'p1',
+    lastScorer: serveLeft ? 'p1' : 'p2',
     pointTimer: 0,
   };
 }
@@ -209,8 +209,8 @@ function executeServe(state, entity) {
 
   let vx, vy;
   if (serveType === 'JUMP') {
-    vx = facingX * speed * 0.92;
-    vy = -speed * 0.6;   // 내리꽂기
+    vx = facingX * speed * 0.97;
+    vy = -speed * 0.2;
   } else if (serveType === 'OVERHAND') {
     vx = facingX * speed * 0.92;
     vy = speed * 0.4;    // 위로
@@ -263,11 +263,24 @@ export const handlers = {
             state.serveTossY = bs.y + (TOSS_VY * TOSS_VY) / (2 * (BALL_GRAVITY + SERVE_TOSS_EXTRA_G));
           }
           state.serveStep = 'tossed';
+          es.serveBuffer = 0;
           return { action: 'SERVE', dvx: 0, dvy: 0 };
         } else if (state.serveStep === 'tossed') {
           if (executeServe(state, entity)) {
+            es.serveBuffer = 0;
             return { action: 'SERVE_HIT', dvx: 0, dvy: 0 };
           }
+          // 범위 밖이면 20틱 버퍼 — 공이 범위에 들어올 때 자동 실행
+          es.serveBuffer = 20;
+        }
+      }
+
+      // 버퍼 처리: 이전에 눌렀는데 범위 밖이었던 경우 매 틱 재시도
+      if (es.serveBuffer > 0 && state.serveStep === 'tossed') {
+        es.serveBuffer--;
+        if (executeServe(state, entity)) {
+          es.serveBuffer = 0;
+          return { action: 'SERVE_HIT', dvx: 0, dvy: 0 };
         }
       }
 
@@ -430,6 +443,6 @@ export function tickGameRule(state) {
     newScore = { p1: 0, p2: 0 };
   }
 
-  const fresh = makeInitialState(state.lastScorer === 'p2', newScore, newSets);
+  const fresh = makeInitialState(state.lastScorer === 'p1', newScore, newSets);
   Object.assign(state, fresh);
 }

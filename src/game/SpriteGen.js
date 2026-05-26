@@ -3,6 +3,8 @@
  * generateAssets() → AssetStore와 동일한 구조의 assets 객체 반환
  */
 
+import { CHARACTERS } from './Characters.js';
+
 async function bmp(canvas) {
   return createImageBitmap(canvas);
 }
@@ -269,11 +271,22 @@ async function loadImageFrames(src, frameSize) {
 
 // ─── 공개 API ─────────────────────────────────────────────────────────────────
 export async function generateAssets() {
-  const [court, net, ball, player] = await Promise.all([
+  const [court, net, ball] = await Promise.all([
     genCourt(),
     genNet(),
     genBall(),
-    loadImageFrames('../asset/character/히나타쇼요.png', 127),
   ]);
-  return { court, net, ball, player };
+
+  const charEntries = await Promise.all(
+    CHARACTERS.map(async char => {
+      const frames = await loadImageFrames(`../asset/character/${char.file}`, 127);
+      return [char.id, frames];
+    })
+  );
+
+  const assets = { court, net, ball };
+  for (const [id, frames] of charEntries) {
+    assets[id] = frames;
+  }
+  return assets;
 }
