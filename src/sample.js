@@ -14,6 +14,7 @@ import { GameLoop }        from './engine/GameLoop.js';
 import { physicsMap, initEntities, handlers } from './game/GameLogic.js';
 import { generateAssets }  from './game/SpriteGen.js';
 import { resolveBody }     from './engine/Physics.js';
+import { createBotController } from './game/ai/BotController.js';
 
 // ─── 키 매핑 ──────────────────────────────────────────────────────────────────
 const KEYS = {
@@ -53,6 +54,12 @@ async function main() {
   const initialState  = initEntities(entityManager);
   const stateSystem   = new StateSystem(initialState);
   const gameLoop      = new GameLoop({ entityManager, physicsMap, handlers });
+  const botController = createBotController({
+    playerId: 'player2',
+    playerSide: 'right',
+    opponentId: 'player1',
+    mapWidth: physicsMap.w,
+  });
 
   let lastTime   = performance.now();
   let accumulator = 0;
@@ -65,7 +72,8 @@ async function main() {
       accumulator -= TICK_MS;
       const state = stateSystem.buf;
       if (state.phase !== 'gameover') {
-        const { value: inputs } = inputGen.next();
+        const { value: rawInputs } = inputGen.next();
+        const inputs = withBotInputs(rawInputs, state, botController);
         const { nextState, toPlay } = gameLoop.tick(state, inputs);
         stateSystem.setState(nextState);
         effector.play(toPlay);
@@ -75,11 +83,21 @@ async function main() {
     renderer.clear();
     renderer.draw(stateSystem.buf, entityManager);
     if (window.showHitboxes) drawHitboxes(ctx, stateSystem.buf, entityManager);
-    drawHUD(ctx, stateSystem.buf, renderer.width, renderer.height);
+    drawHUD(ctx, stateSystem.buf, renderer.width, renderer.height, botController);
     requestAnimationFrame(rafLoop);
   }
 
   requestAnimationFrame(rafLoop);
+}
+
+
+function withBotInputs(inputs, state, botController) {
+  const nextInputs = { ...inputs };
+  const botInputs = botController.makeInputs(state);
+  for (const key in botInputs) {
+    nextInputs[key] = botInputs[key];
+  }
+  return nextInputs;
 }
 
 // ─── 히트박스 디버그 렌더 ────────────────────────────────────────────────────
@@ -188,7 +206,7 @@ function drawHitboxes(ctx, buf, entityManager) {
 }
 
 // ─── HUD (캔버스 직접 렌더) ───────────────────────────────────────────────────
-function drawHUD(ctx, state, W, H) {
+function drawHUD(ctx, state, W, H, botController) {
   // 점수
   ctx.fillStyle    = 'rgba(0,0,0,0.45)';
   ctx.fillRect(W / 2 - 80, 4, 160, 46);
@@ -205,6 +223,9 @@ function drawHUD(ctx, state, W, H) {
   ctx.textAlign    = 'left';
   ctx.fillStyle    = 'rgba(255,255,255,0.65)';
   ctx.fillText('1P: ←→이동 / ↑점프 / ↓리시브 / Shift스파이크 / ←←or→→다이빙 / ↑↑블로킹 / ↓↓스킬  |  2P: WASD / ShiftLeft', 8, H - 18);
+
+  ctx.textAlign = 'right';
+  ctx.fillText(`2P AI: ${botController.getCurrentTypeLabel()}`, W - 8, H - 18);
 
   // 득점 오버레이
   if (state.phase === 'point') {
