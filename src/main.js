@@ -9,7 +9,7 @@ import { generateAssets }     from './game/SpriteGen.js';
 import { TitleScreen }        from './game/TitleScreen.js';
 import { CharacterSelect }    from './game/CharacterSelect.js';
 import { createBotController } from './game/ai/BotController.js';
-import { drawHUD, drawPauseOverlay } from './game/HUD.js';
+import { drawHUD, drawPauseOverlay, drawControlsOverlay } from './game/HUD.js';
 import { drawHitboxes }       from './game/DebugOverlay.js';
 
 const KEYS = {
@@ -67,6 +67,7 @@ async function main() {
   let phase          = 'title';
   let isSinglePlay   = false;
   let paused         = false;
+  let showControls   = false;
   let prevShiftPause = false;
   let titleScreen    = null;
   let charSelect     = null;
@@ -75,7 +76,13 @@ async function main() {
   let accumulator = 0;
 
   document.addEventListener('keydown', (e) => {
+    if (e.code === 'Tab') {
+      e.preventDefault();
+      showControls = !showControls;
+      return;
+    }
     if (e.code === 'Escape') {
+      if (showControls) { showControls = false; return; }
       if (phase === 'select') goToTitle();
       else if (phase === 'game') paused = !paused;
     }
@@ -160,6 +167,8 @@ async function main() {
       drawHUD(ctx, stateSystem.buf, renderer.width, renderer.height, botController, entityManager);
       if (paused) drawPauseOverlay(ctx, renderer.width, renderer.height);
     }
+
+    if (showControls) drawControlsOverlay(ctx, renderer.width, renderer.height);
 
     requestAnimationFrame(rafLoop);
   }

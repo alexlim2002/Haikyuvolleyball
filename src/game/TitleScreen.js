@@ -85,7 +85,7 @@ export class TitleScreen {
     ctx.font = "11px monospace";
     ctx.textAlign = "center";
     ctx.textBaseline = "top";
-    ctx.fillText("↑↓ / 클릭 선택  /  Enter 확인", LW / 2, 10);
+    ctx.fillText("↑↓ / 클릭 선택  /  Enter 확인  /  Tab — 조작법", LW / 2, 10);
 
     // 선택 테두리
     const cy = TitleScreen.ITEM_Y[this.#selectedIdx];
