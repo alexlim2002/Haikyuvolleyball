@@ -10,6 +10,7 @@
 const LOGICAL_WIDTH  = 800;
 const LOGICAL_HEIGHT = 450;
 const TPS = 60;
+export const FLOOR_OFFSET = 60; // 바닥이 캔버스 하단에서 이 픽셀만큼 위에 위치
 
 function resolveSprites(sprites, facing) {
   if (sprites?.right !== undefined) {
@@ -104,8 +105,10 @@ export class Renderer {
   #toCanvasRect(entity, state) {
     const w  = (entity.size?.w ?? 0) * LOGICAL_WIDTH;
     const h  = (entity.size?.h ?? 0) * LOGICAL_WIDTH;
+    // bg(코트 배경)와 net은 뷰포트 바닥 기준, 그 외는 물리 바닥(FLOOR_OFFSET 위)
+    const floor = (entity.type === 'bg' || entity.role === 'net') ? 0 : FLOOR_OFFSET;
     const cx = state.x * LOGICAL_WIDTH;
-    const cy = LOGICAL_HEIGHT - state.y * LOGICAL_WIDTH;
+    const cy = LOGICAL_HEIGHT - floor - state.y * LOGICAL_WIDTH;
     const x  = cx - w / 2;
     const y  = entity.origin === 'center' ? cy - h / 2 : cy - h;
     return { x, y, w, h };

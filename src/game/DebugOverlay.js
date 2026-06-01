@@ -1,9 +1,10 @@
 import { resolveBody } from '../engine/Physics.js';
+import { FLOOR_OFFSET } from '../engine/Renderer.js';
 
 const LW = 800, LH = 450;
 
 function px(x) { return x * LW; }
-function py(y) { return LH - y * LW; }
+function py(y) { return LH - FLOOR_OFFSET - y * LW; }
 
 // GameLoop#extendArm 시각화용 복사본
 function extendArm(body, actionType, facing, armLength) {

@@ -50,27 +50,6 @@ async function genCourt() {
   return bmp(c);
 }
 
-// ─── 네트 ─────────────────────────────────────────────────────────────────────
-async function genNet() {
-  const W = 10, H = 150;
-  const c = new OffscreenCanvas(W, H);
-  const ctx = c.getContext('2d');
-
-  ctx.fillStyle = '#555';
-  ctx.fillRect(0, 0, W, H);
-
-  ctx.strokeStyle = '#aaa';
-  ctx.lineWidth = 0.5;
-  for (let y = 5; y < H; y += 5) {
-    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
-  }
-
-  ctx.fillStyle = '#eee';
-  ctx.fillRect(0, 0, W, 5);
-
-  return bmp(c);
-}
-
 // ─── 공 ───────────────────────────────────────────────────────────────────────
 async function genBall() {
   const S = 32, R = S / 2 - 1;
@@ -287,12 +266,29 @@ async function loadImageBitmap(relPath) {
   }
 }
 
+// SVG는 createImageBitmap이 디코드 못 하므로 Image 엘리먼트로 로드
+async function loadSVG(relPath) {
+  try {
+    const url = new URL(relPath, import.meta.url).href;
+    const img = new Image();
+    await new Promise((resolve, reject) => {
+      img.onload = resolve;
+      img.onerror = reject;
+      img.src = url;
+    });
+    return createImageBitmap(img);
+  } catch (e) {
+    console.warn('[SpriteGen] SVG 로드 실패:', relPath, e);
+    return null;
+  }
+}
+
 // ─── 공개 API ─────────────────────────────────────────────────────────────────
 export async function generateAssets() {
   const [bgImg, startImg, net, ball] = await Promise.all([
     loadImageBitmap('../asset/background.png'),
     loadImageBitmap('../asset/start.png'),
-    genNet(),
+    loadSVG('../asset/net.img.svg'),
     genBall(),
   ]);
 

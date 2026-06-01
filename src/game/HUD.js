@@ -1,4 +1,5 @@
 import { getBindings, keyName } from './KeyBindings.js';
+import { FLOOR_OFFSET } from '../engine/Renderer.js';
 
 export function drawPauseOverlay(ctx, W, H) {
   ctx.fillStyle = "rgba(0,0,0,0.55)";
@@ -32,7 +33,7 @@ export function drawHUD(ctx, state, W, H, botController, entityManager) {
     const e1 = entityManager.get("player1");
     if (e1?.maxStamina) {
       const sx = (p1.x / 1) * W;
-      const sy = H - (p1.y / 0.5625) * H - (e1.size.h / 0.5625) * H - 8;
+      const sy = H - FLOOR_OFFSET - (p1.y / 0.5625) * H - (e1.size.h / 0.5625) * H - 8;
       drawStaminaBar(ctx, p1.stamina, e1.maxStamina, sx - 24, sy, 48, 5);
     }
   }
@@ -41,7 +42,7 @@ export function drawHUD(ctx, state, W, H, botController, entityManager) {
     const e2 = entityManager.get("player2");
     if (e2?.maxStamina) {
       const sx = (p2.x / 1) * W;
-      const sy = H - (p2.y / 0.5625) * H - (e2.size.h / 0.5625) * H - 8;
+      const sy = H - FLOOR_OFFSET - (p2.y / 0.5625) * H - (e2.size.h / 0.5625) * H - 8;
       drawStaminaBar(ctx, p2.stamina, e2.maxStamina, sx - 24, sy, 48, 5);
     }
   }

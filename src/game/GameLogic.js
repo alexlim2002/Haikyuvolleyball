@@ -14,13 +14,13 @@ import { TIER } from "./Characters.js";
 const LW = 800; // LOGICAL_WIDTH
 
 // 스태미나 드레인 (틱당)
-const DRAIN_MOVE    = -0.03; // 이동 중 소량 회복
-const DRAIN_JUMP    = 4;
-const DRAIN_SPIKE   = 5;
-const DRAIN_BLOCK   = 1.5;
-const DRAIN_DIVE    = 8;
+const DRAIN_MOVE = -0.03; // 이동 중 소량 회복
+const DRAIN_JUMP = 4;
+const DRAIN_SPIKE = 5;
+const DRAIN_BLOCK = 1.5;
+const DRAIN_DIVE = 8;
 const DRAIN_RECEIVE = 1;
-const RECOVER_IDLE  = 0.1; // 가만히 있을 때 틱당 회복
+const RECOVER_IDLE = 0.1; // 가만히 있을 때 틱당 회복
 const JUMP_VY = 13 / LW;
 const DIVE_VX = 18 / LW;
 const DIVE_VY = 3 / LW;
@@ -43,7 +43,9 @@ const BALL_R = 18 / LW;
 const ARM_LEN = 35 / LW;
 const RECEIVE_R = 55 / LW;
 const P_SIZE = { w: 80 / LW, h: 80 / LW };
-const NET_SIZE = { w: 10 / LW, h: 160 / LW };
+const NET_SIZE = { w: 10 / LW, h: 200 / LW }; // 히트박스 (높이 1.5배)
+const NET_DISPLAY = { w: 20 / LW, h: 200 / LW }; // 시각 (두께 2배, 높이 1.5배)
+const NET_DROP = 60 / LW; // 네트가 뷰포트 바닥 기준이라 히트박스를 FLOOR_OFFSET만큼 아래로
 
 const WIN_SCORE = 15;
 const WIN_SETS = 2;
@@ -62,35 +64,72 @@ const PLAYER_SPRITES = {
   DIVE: { right: { start: 20, count: 1 }, left: { start: 21, count: 1 } },
 };
 
-
 // ─── 물리맵 ───────────────────────────────────────────────────────────────────
 export const physicsMap = new PhysicsMap(1, 0.5625);
 
 // ─── 캐릭터 스탯 → 엔티티 수치 변환 ─────────────────────────────────────────
 function resolveCharStats(char) {
   const s = char?.stats ?? {};
-  const physMult = TIER.physique[s.physique ?? '중'];
+  const physMult = TIER.physique[s.physique ?? "중"];
   return {
-    size:        { w: P_SIZE.w * physMult, h: P_SIZE.h * physMult },
-    armLength:   ARM_LEN * physMult,
-    speed:       TIER.speed[s.speed ?? '중'],
-    power:       TIER.power[s.power ?? '중'],
-    maxStamina:  TIER.stamina[s.stamina ?? '중'],
-    hitboxes:    makePlayerHitboxes(physMult),
+    size: { w: P_SIZE.w * physMult, h: P_SIZE.h * physMult },
+    armLength: ARM_LEN * physMult,
+    speed: TIER.speed[s.speed ?? "중"],
+    power: TIER.power[s.power ?? "중"],
+    maxStamina: TIER.stamina[s.stamina ?? "중"],
+    hitboxes: makePlayerHitboxes(physMult),
   };
 }
 
 function makePlayerActionsFor(hitboxes) {
   return {
-    IDLE:      { duration: 0,  sprites: PLAYER_SPRITES.IDLE,     getHitbox: hitboxes.IDLE     },
-    RUN:       { duration: 0,  sprites: PLAYER_SPRITES.RUN,      frameMs: 150, getHitbox: hitboxes.RUN },
-    JUMP:      { duration: 0,  sprites: PLAYER_SPRITES.JUMP,     getHitbox: hitboxes.JUMP     },
-    SPIKE:     { duration: 10, sprites: PLAYER_SPRITES.SPIKE,    getHitbox: hitboxes.SPIKE    },
-    BLOCK:     { duration: 50, sprites: PLAYER_SPRITES.BLOCK,    getHitbox: hitboxes.BLOCK    },
-    DIVE:      { duration: 35, sprites: PLAYER_SPRITES.DIVE,     getHitbox: hitboxes.DIVE     },
-    RECEIVE:   { duration: 15, sprites: PLAYER_SPRITES.RECEIVE,  getHitbox: hitboxes.RECEIVE, actionRange: { ox: 0, oy: 0.03, r: RECEIVE_R } },
-    SERVE:     { duration: 0,  sprites: PLAYER_SPRITES.SERVE,    getHitbox: hitboxes.IDLE     },
-    SERVE_HIT: { duration: 8,  sprites: PLAYER_SPRITES.SERVE_HIT,getHitbox: hitboxes.IDLE     },
+    IDLE: {
+      duration: 0,
+      sprites: PLAYER_SPRITES.IDLE,
+      getHitbox: hitboxes.IDLE,
+    },
+    RUN: {
+      duration: 0,
+      sprites: PLAYER_SPRITES.RUN,
+      frameMs: 150,
+      getHitbox: hitboxes.RUN,
+    },
+    JUMP: {
+      duration: 0,
+      sprites: PLAYER_SPRITES.JUMP,
+      getHitbox: hitboxes.JUMP,
+    },
+    SPIKE: {
+      duration: 10,
+      sprites: PLAYER_SPRITES.SPIKE,
+      getHitbox: hitboxes.SPIKE,
+    },
+    BLOCK: {
+      duration: 50,
+      sprites: PLAYER_SPRITES.BLOCK,
+      getHitbox: hitboxes.BLOCK,
+    },
+    DIVE: {
+      duration: 35,
+      sprites: PLAYER_SPRITES.DIVE,
+      getHitbox: hitboxes.DIVE,
+    },
+    RECEIVE: {
+      duration: 15,
+      sprites: PLAYER_SPRITES.RECEIVE,
+      getHitbox: hitboxes.RECEIVE,
+      actionRange: { ox: 0, oy: 0.03, r: RECEIVE_R },
+    },
+    SERVE: {
+      duration: 0,
+      sprites: PLAYER_SPRITES.SERVE,
+      getHitbox: hitboxes.IDLE,
+    },
+    SERVE_HIT: {
+      duration: 8,
+      sprites: PLAYER_SPRITES.SERVE_HIT,
+      getHitbox: hitboxes.IDLE,
+    },
   };
 }
 
@@ -112,7 +151,7 @@ export function initEntities(entityManager, p1Char, p2Char) {
     role: "net",
     assetId: "net",
     origin: "bottom-center",
-    size: NET_SIZE,
+    size: NET_DISPLAY,
     physics: { gravity: 0, restitution: 0 },
     actions: {
       DEFAULT: {
@@ -122,7 +161,7 @@ export function initEntities(entityManager, p1Char, p2Char) {
           {
             shape: "capsule",
             ox: 0,
-            oy: NET_SIZE.h / 2,
+            oy: NET_SIZE.h / 2 - NET_DROP,
             length: NET_SIZE.h,
             angle: Math.PI / 2,
             r: NET_SIZE.w / 2,
@@ -140,13 +179,17 @@ export function initEntities(entityManager, p1Char, p2Char) {
     assetId: p1Char?.id ?? "hinata",
     origin: "bottom-center",
     size: p1Stats.size,
-    physics: { gravity: P_GRAVITY, restitution: 0, apexThreshold: APEX_THRESHOLD },
-    armLength:   p1Stats.armLength,
-    speed:       p1Stats.speed,
-    power:       p1Stats.power,
-    maxStamina:  p1Stats.maxStamina,
-    actions:     makePlayerActionsFor(p1Stats.hitboxes),
-    serveTypes:  p1Char?.serveTypes ?? ["UNDERHAND"],
+    physics: {
+      gravity: P_GRAVITY,
+      restitution: 0,
+      apexThreshold: APEX_THRESHOLD,
+    },
+    armLength: p1Stats.armLength,
+    speed: p1Stats.speed,
+    power: p1Stats.power,
+    maxStamina: p1Stats.maxStamina,
+    actions: makePlayerActionsFor(p1Stats.hitboxes),
+    serveTypes: p1Char?.serveTypes ?? ["UNDERHAND"],
   });
 
   entityManager.register("player2", {
@@ -156,13 +199,17 @@ export function initEntities(entityManager, p1Char, p2Char) {
     assetId: p2Char?.id ?? "hinata",
     origin: "bottom-center",
     size: p2Stats.size,
-    physics: { gravity: P_GRAVITY, restitution: 0, apexThreshold: APEX_THRESHOLD },
-    armLength:   p2Stats.armLength,
-    speed:       p2Stats.speed,
-    power:       p2Stats.power,
-    maxStamina:  p2Stats.maxStamina,
-    actions:     makePlayerActionsFor(p2Stats.hitboxes),
-    serveTypes:  p2Char?.serveTypes ?? ["UNDERHAND"],
+    physics: {
+      gravity: P_GRAVITY,
+      restitution: 0,
+      apexThreshold: APEX_THRESHOLD,
+    },
+    armLength: p2Stats.armLength,
+    speed: p2Stats.speed,
+    power: p2Stats.power,
+    maxStamina: p2Stats.maxStamina,
+    actions: makePlayerActionsFor(p2Stats.hitboxes),
+    serveTypes: p2Char?.serveTypes ?? ["UNDERHAND"],
   });
 
   entityManager.register("ball", {
@@ -183,7 +230,13 @@ export function initEntities(entityManager, p1Char, p2Char) {
     },
   });
 
-  return makeInitialState(Math.random() < 0.5, null, null, p1Stats.maxStamina, p2Stats.maxStamina);
+  return makeInitialState(
+    Math.random() < 0.5,
+    null,
+    null,
+    p1Stats.maxStamina,
+    p2Stats.maxStamina,
+  );
 }
 
 function makeInitialState(serveLeft, score, sets, p1Stamina, p2Stamina) {
@@ -277,7 +330,8 @@ function executeServe(state, entity) {
 
   const power = entity?.power ?? 1.0;
   const ratio = Math.min(1, Math.max(0, bs.y / (state.serveTossY || 0.001)));
-  const speed = (SERVE_SPEED_MIN + (SERVE_SPEED_MAX - SERVE_SPEED_MIN) * ratio) * power;
+  const speed =
+    (SERVE_SPEED_MIN + (SERVE_SPEED_MAX - SERVE_SPEED_MIN) * ratio) * power;
 
   let vx, vy;
   if (serveType === "JUMP") {
@@ -586,6 +640,12 @@ export function tickGameRule(state) {
 
   const p1Stamina = state.player1.stamina;
   const p2Stamina = state.player2.stamina;
-  const fresh = makeInitialState(state.lastScorer === "p1", newScore, newSets, p1Stamina, p2Stamina);
+  const fresh = makeInitialState(
+    state.lastScorer === "p1",
+    newScore,
+    newSets,
+    p1Stamina,
+    p2Stamina,
+  );
   Object.assign(state, fresh);
 }
