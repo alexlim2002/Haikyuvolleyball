@@ -275,13 +275,29 @@ async function loadImageFrames(src, frameSize) {
   }
 }
 
+async function loadImageBitmap(relPath) {
+  try {
+    const url = new URL(relPath, import.meta.url).href;
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    return createImageBitmap(await res.blob());
+  } catch (e) {
+    console.warn('[SpriteGen] 로드 실패:', relPath, e);
+    return null;
+  }
+}
+
 // ─── 공개 API ─────────────────────────────────────────────────────────────────
 export async function generateAssets() {
-  const [court, net, ball] = await Promise.all([
-    genCourt(),
+  const [bgImg, startImg, net, ball] = await Promise.all([
+    loadImageBitmap('../asset/background.png'),
+    loadImageBitmap('../asset/start.png'),
     genNet(),
     genBall(),
   ]);
+
+  const court = bgImg ?? await genCourt();
+  const start = startImg;
 
   const charEntries = await Promise.all(
     CHARACTERS.map(async char => {
@@ -291,7 +307,7 @@ export async function generateAssets() {
     })
   );
 
-  const assets = { court, net, ball };
+  const assets = { court, net, ball, start };
   for (const [id, frames] of charEntries) {
     assets[id] = frames;
   }

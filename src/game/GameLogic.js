@@ -43,7 +43,7 @@ const BALL_R = 18 / LW;
 const ARM_LEN = 35 / LW;
 const RECEIVE_R = 55 / LW;
 const P_SIZE = { w: 80 / LW, h: 80 / LW };
-const NET_SIZE = { w: 10 / LW, h: 150 / LW };
+const NET_SIZE = { w: 10 / LW, h: 160 / LW };
 
 const WIN_SCORE = 15;
 const WIN_SETS = 2;

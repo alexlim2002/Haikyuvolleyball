@@ -44,6 +44,13 @@ async function main() {
   const renderer  = new Renderer(canvas, assets);
   const inputGen  = initInputSystem({ keyboardMapping: KEYS, touchMapping: {} })();
 
+  canvas.addEventListener('click', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const lx = (e.clientX - rect.left) * (800 / rect.width);
+    const ly = (e.clientY - rect.top)  * (450 / rect.height);
+    if (phase === 'title') titleScreen.handleClick(lx, ly);
+  });
+
   let phase          = 'title';
   let isSinglePlay   = false;
   let paused         = false;
@@ -75,7 +82,7 @@ async function main() {
       isSinglePlay = (mode === 'single');
       charSelect   = new CharacterSelect(assets, startGame, isSinglePlay);
       phase = 'select';
-    }, actionAlreadyHeld);
+    }, actionAlreadyHeld, assets);
   }
 
   function startGame(p1Char, p2Char) {
