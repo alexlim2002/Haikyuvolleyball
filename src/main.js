@@ -14,7 +14,7 @@ import { drawHitboxes }       from './game/DebugOverlay.js';
 import { ControlsConfig }     from './game/ControlsConfig.js';
 import {
   loadBindings, saveBindings, setCurrentBindings,
-  buildKeysMap, buildDirectMap,
+  buildKeysMap, buildDirectMap, buildDisabledDoubles,
 } from './game/KeyBindings.js';
 
 const TPS     = 60;
@@ -37,10 +37,11 @@ async function main() {
   let bindings  = loadBindings();
   setCurrentBindings(bindings);
 
-  const keysMap   = buildKeysMap(bindings);    // mutable — updated in-place on save
-  const directMap = buildDirectMap(bindings);  // mutable — updated in-place on save
+  const keysMap        = buildKeysMap(bindings);
+  const directMap      = buildDirectMap(bindings);
+  const disabledDoubles = buildDisabledDoubles(bindings);
 
-  const inputGen = initInputSystem({ keyboardMapping: keysMap, touchMapping: {}, directMapping: directMap })();
+  const inputGen = initInputSystem({ keyboardMapping: keysMap, touchMapping: {}, directMapping: directMap, disabledDoubles })();
 
   function applyBindings(newBindings) {
     bindings = newBindings;
@@ -52,6 +53,8 @@ async function main() {
     Object.assign(keysMap, km);
     Object.keys(directMap).forEach(k => delete directMap[k]);
     Object.assign(directMap, dm);
+    disabledDoubles.clear();
+    for (const v of buildDisabledDoubles(newBindings)) disabledDoubles.add(v);
   }
 
   // ── 마우스 ───────────────────────────────────────────────────────────────

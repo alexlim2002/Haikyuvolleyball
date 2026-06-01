@@ -65,7 +65,7 @@ function toDoubleInput(input) {
  *
  * @returns {() => AsyncGenerator<{ [inputType: string]: boolean }>}
  */
-export function initInputSystem({ keyboardMapping, touchMapping, directMapping = {} }) {
+export function initInputSystem({ keyboardMapping, touchMapping, directMapping = {}, disabledDoubles = new Set() }) {
   // keyboardMapping and directMapping are mutable objects — updated externally when bindings change
 
   const emptyTable = () =>
@@ -105,12 +105,12 @@ export function initInputSystem({ keyboardMapping, touchMapping, directMapping =
 
     const now = performance.now();
     const doubleInput = toDoubleInput(input);
-    if (doubleInput && input === double.input && double.phase === 1) {
-      if (now - double.time < DOUBLE_TAP_MS) {
-        stateTable[doubleInput] = true;
-      }
+    if (doubleInput && !disabledDoubles.has(doubleInput) && input === double.input && double.phase === 1 && now - double.time < DOUBLE_TAP_MS) {
+      // 더블탭 확정 (단일키 미할당 시에만)
+      stateTable[doubleInput] = true;
       double = { input: null, time: -Infinity, phase: 0 };
     } else {
+      // 단일 입력 (시간 만료 포함)
       stateTable[input] = true;
       double.input = input;
       double.time = now;

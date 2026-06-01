@@ -76,6 +76,17 @@ export function buildKeysMap(b) {
   };
 }
 
+export function buildDisabledDoubles(b) {
+  const s = new Set();
+  if (b.p1.diveLeft)  s.add('1P_DOUBLE_LEFT');
+  if (b.p1.diveRight) s.add('1P_DOUBLE_RIGHT');
+  if (b.p1.block)     s.add('1P_DOUBLE_UP');
+  if (b.p2.diveLeft)  s.add('2P_DOUBLE_LEFT');
+  if (b.p2.diveRight) s.add('2P_DOUBLE_RIGHT');
+  if (b.p2.block)     s.add('2P_DOUBLE_UP');
+  return s;
+}
+
 export function buildDirectMap(b) {
   const direct = {};
   const pairs = [
