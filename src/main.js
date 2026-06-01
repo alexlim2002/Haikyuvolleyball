@@ -68,6 +68,9 @@ async function main() {
   let isSinglePlay   = false;
   let paused         = false;
   let showControls   = false;
+  let spaceHeld      = false;
+  document.addEventListener('keydown', (e) => { if (e.code === 'Space') { e.preventDefault(); spaceHeld = true; } });
+  document.addEventListener('keyup',   (e) => { if (e.code === 'Space') spaceHeld = false; });
   let prevShiftPause = false;
   let titleScreen    = null;
   let charSelect     = null;
@@ -131,9 +134,11 @@ async function main() {
       const { value: rawInputs } = inputGen.next();
 
       if (phase === 'title') {
-        titleScreen.tick(rawInputs);
+        const inp = spaceHeld ? { ...rawInputs, '1P_CONFIRM': true, '2P_CONFIRM': true } : rawInputs;
+        titleScreen.tick(inp);
       } else if (phase === 'select') {
-        charSelect.tick(rawInputs);
+        const inp = spaceHeld ? { ...rawInputs, '1P_CONFIRM': true, '2P_CONFIRM': true } : rawInputs;
+        charSelect.tick(inp);
       } else {
         const state      = stateSystem.buf;
         const confirmNow = !!(rawInputs['1P_CONFIRM'] || rawInputs['2P_CONFIRM']);

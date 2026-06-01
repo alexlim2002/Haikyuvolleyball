@@ -14,13 +14,13 @@ import { TIER } from "./Characters.js";
 const LW = 800; // LOGICAL_WIDTH
 
 // 스태미나 드레인 (틱당)
-const DRAIN_MOVE    = 0.03;
+const DRAIN_MOVE    = -0.01; // 이동 중 소량 회복
 const DRAIN_JUMP    = 3;
 const DRAIN_SPIKE   = 5;
 const DRAIN_BLOCK   = 5;
 const DRAIN_DIVE    = 4;
 const DRAIN_RECEIVE = 1;
-const RECOVER_IDLE  = 0.04; // 가만히 있을 때 틱당 회복
+const RECOVER_IDLE  = 0.18; // 가만히 있을 때 틱당 회복
 const JUMP_VY = 13 / LW;
 const DIVE_VX = 18 / LW;
 const DIVE_VY = 3 / LW;
@@ -443,13 +443,13 @@ export const handlers = {
 
     // 이동
     if (L) {
-      es.stamina = Math.max(0, es.stamina - DRAIN_MOVE);
+      es.stamina = Math.min(entity.maxStamina, es.stamina - DRAIN_MOVE);
       es.vx = -effectiveSpeed;
       es.facing = -1;
       return es.actionType === "RUN" ? null : { action: "RUN", dvx: 0, dvy: 0 };
     }
     if (R) {
-      es.stamina = Math.max(0, es.stamina - DRAIN_MOVE);
+      es.stamina = Math.min(entity.maxStamina, es.stamina - DRAIN_MOVE);
       es.vx = effectiveSpeed;
       es.facing = 1;
       return es.actionType === "RUN" ? null : { action: "RUN", dvx: 0, dvy: 0 };

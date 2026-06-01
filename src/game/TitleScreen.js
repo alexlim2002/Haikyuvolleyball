@@ -80,12 +80,16 @@ export class TitleScreen {
       ctx.fillRect(0, 0, LW, LH);
     }
 
-    // 조작 안내 (상단)
-    ctx.fillStyle = "rgba(255,255,255,0.6)";
-    ctx.font = "11px monospace";
+    // 조작 안내 (둘이서 같이 버튼 아래)
+    ctx.fillStyle = "rgba(0,0,0,0.45)";
+    ctx.beginPath();
+    ctx.roundRect(LW / 2 - 200, 374, 400, 22, 5);
+    ctx.fill();
+    ctx.fillStyle = "rgba(255,255,255,0.92)";
+    ctx.font = "bold 12px monospace";
     ctx.textAlign = "center";
     ctx.textBaseline = "top";
-    ctx.fillText("↑↓ / 클릭 선택  /  Enter 확인  /  Tab — 조작법", LW / 2, 10);
+    ctx.fillText("↑↓ / 클릭 / Space·Enter 확인  /  Tab — 조작법", LW / 2, 378);
 
     // 선택 테두리
     const cy = TitleScreen.ITEM_Y[this.#selectedIdx];
