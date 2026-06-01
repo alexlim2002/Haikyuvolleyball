@@ -11,6 +11,7 @@ const STAT_COLORS = { speed: '#44aaff', power: '#ff6644', physique: '#aa66ff', s
 
 const LW = 800, LH = 450;
 const CARD_W = 120, CARD_H = 220, CARD_GAP = 20;
+const CARDS_Y = 130;
 const TOTAL_W = CHARACTERS.length * CARD_W + (CHARACTERS.length - 1) * CARD_GAP;
 const START_X = (LW - TOTAL_W) / 2;
 
@@ -36,6 +37,44 @@ export class CharacterSelect {
       // AI 캐릭터 미리 랜덤 결정
       this.#p2Idx = Math.floor(Math.random() * CHARACTERS.length);
       this.#p2Done = true;
+    }
+  }
+
+  // button: 0=좌클릭, 2=우클릭
+  handleClick(lx, ly, button) {
+    for (let i = 0; i < CHARACTERS.length; i++) {
+      const cx = START_X + i * (CARD_W + CARD_GAP);
+      if (lx < cx || lx > cx + CARD_W || ly < CARDS_Y || ly > CARDS_Y + CARD_H) continue;
+
+      const doP1 = this.#singlePlay || button !== 2;
+      const doP2 = !this.#singlePlay && button === 2;
+
+      if (doP1) {
+        if (this.#p1Idx === i) this.#p1Done = !this.#p1Done;
+        else { this.#p1Idx = i; this.#p1Done = false; }
+      }
+      if (doP2) {
+        if (this.#p2Idx === i) this.#p2Done = !this.#p2Done;
+        else { this.#p2Idx = i; this.#p2Done = false; }
+      }
+      return;
+    }
+  }
+
+  drawClickBoxes(ctx) {
+    for (let i = 0; i < CHARACTERS.length; i++) {
+      const cx = START_X + i * (CARD_W + CARD_GAP);
+      ctx.strokeStyle = 'rgba(0,255,200,0.9)';
+      ctx.lineWidth = 1.5;
+      ctx.fillStyle = 'rgba(0,255,200,0.08)';
+      ctx.beginPath();
+      ctx.roundRect(cx, CARDS_Y, CARD_W, CARD_H, 8);
+      ctx.fill(); ctx.stroke();
+      ctx.fillStyle = 'rgba(0,255,200,0.8)';
+      ctx.font = '9px monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.fillText(`card[${i}]`, cx + CARD_W / 2, CARDS_Y + 2);
     }
   }
 
@@ -131,8 +170,6 @@ export class CharacterSelect {
     } else {
       ctx.fillText('1P: A/D / ShiftLeft    2P: ←→ / ShiftRight    둘 다 확정 후 Enter 게임 시작', LW / 2, 58);
     }
-
-    const CARDS_Y = 130;
 
     for (let i = 0; i < CHARACTERS.length; i++) {
       const char = CHARACTERS[i];

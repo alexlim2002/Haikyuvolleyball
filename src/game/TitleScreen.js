@@ -44,7 +44,7 @@ export class TitleScreen {
   handleClick(lx, ly) {
     for (let i = 0; i < TitleScreen.ITEM_Y.length; i++) {
       const cy = TitleScreen.ITEM_Y[i];
-      if (ly >= cy - 20 && ly <= cy + 20) {
+      if (ly >= cy - 10 && ly <= cy + 30) {
         if (this.#selectedIdx === i) {
           this.#onSelect(i === 0 ? "single" : "multi");
         } else {
@@ -52,6 +52,23 @@ export class TitleScreen {
         }
         return;
       }
+    }
+  }
+
+  drawClickBoxes(ctx) {
+    for (let i = 0; i < TitleScreen.ITEM_Y.length; i++) {
+      const cy = TitleScreen.ITEM_Y[i];
+      ctx.strokeStyle = 'rgba(0,255,200,0.9)';
+      ctx.lineWidth = 1.5;
+      ctx.fillStyle = 'rgba(0,255,200,0.08)';
+      ctx.beginPath();
+      ctx.roundRect(LW / 2 - 160, cy - 10, 320, 40, 6);
+      ctx.fill(); ctx.stroke();
+      ctx.fillStyle = 'rgba(0,255,200,0.8)';
+      ctx.font = '9px monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.fillText(`menu[${i}]`, LW / 2, cy - 18);
     }
   }
 

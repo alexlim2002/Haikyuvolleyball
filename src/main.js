@@ -44,11 +44,24 @@ async function main() {
   const renderer  = new Renderer(canvas, assets);
   const inputGen  = initInputSystem({ keyboardMapping: KEYS, touchMapping: {} })();
 
-  canvas.addEventListener('click', (e) => {
+  function canvasLogical(e) {
     const rect = canvas.getBoundingClientRect();
-    const lx = (e.clientX - rect.left) * (800 / rect.width);
-    const ly = (e.clientY - rect.top)  * (450 / rect.height);
-    if (phase === 'title') titleScreen.handleClick(lx, ly);
+    return {
+      lx: (e.clientX - rect.left) * (800 / rect.width),
+      ly: (e.clientY - rect.top)  * (450 / rect.height),
+    };
+  }
+
+  canvas.addEventListener('click', (e) => {
+    const { lx, ly } = canvasLogical(e);
+    if (phase === 'title')  titleScreen.handleClick(lx, ly);
+    if (phase === 'select') charSelect.handleClick(lx, ly, e.button);
+  });
+
+  canvas.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    const { lx, ly } = canvasLogical(e);
+    if (phase === 'select') charSelect.handleClick(lx, ly, 2);
   });
 
   let phase          = 'title';
@@ -137,8 +150,10 @@ async function main() {
     renderer.clear();
     if (phase === 'title') {
       titleScreen.draw(ctx);
+      if (window.showHitboxes) titleScreen.drawClickBoxes(ctx);
     } else if (phase === 'select') {
       charSelect.draw(ctx);
+      if (window.showHitboxes) charSelect.drawClickBoxes(ctx);
     } else {
       renderer.draw(stateSystem.buf, entityManager);
       if (window.showHitboxes) drawHitboxes(ctx, stateSystem.buf, entityManager);
