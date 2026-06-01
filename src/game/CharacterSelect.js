@@ -1,4 +1,5 @@
 import { CHARACTERS, TIER } from './Characters.js';
+import { getBindings, keyName } from './KeyBindings.js';
 
 const STAT_TIERS = {
   speed:    ['하', '중', '상'],
@@ -165,10 +166,11 @@ export class CharacterSelect {
 
     ctx.font = '13px monospace';
     ctx.fillStyle = 'rgba(255,255,255,0.75)';
+    const _b = getBindings();
     if (this.#singlePlay) {
-      ctx.fillText('1P: A/D 이동  /  ShiftLeft 확정  →  Enter 게임 시작', LW / 2, 58);
+      ctx.fillText(`1P: ${keyName(_b.p1.left)}/${keyName(_b.p1.right)} 이동  /  ${keyName(_b.p1.action)} 확정  →  Enter 게임 시작`, LW / 2, 58);
     } else {
-      ctx.fillText('1P: A/D / ShiftLeft    2P: ←→ / ShiftRight    둘 다 확정 후 Enter 게임 시작', LW / 2, 58);
+      ctx.fillText(`1P: ${keyName(_b.p1.left)}/${keyName(_b.p1.right)} / ${keyName(_b.p1.action)}    2P: ${keyName(_b.p2.left)}/${keyName(_b.p2.right)} / ${keyName(_b.p2.action)}    둘 다 확정 후 Enter 게임 시작`, LW / 2, 58);
     }
 
     for (let i = 0; i < CHARACTERS.length; i++) {

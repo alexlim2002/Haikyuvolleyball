@@ -14,13 +14,13 @@ import { TIER } from "./Characters.js";
 const LW = 800; // LOGICAL_WIDTH
 
 // 스태미나 드레인 (틱당)
-const DRAIN_MOVE    = -0.01; // 이동 중 소량 회복
-const DRAIN_JUMP    = 3;
+const DRAIN_MOVE    = -0.03; // 이동 중 소량 회복
+const DRAIN_JUMP    = 4;
 const DRAIN_SPIKE   = 5;
-const DRAIN_BLOCK   = 5;
-const DRAIN_DIVE    = 4;
+const DRAIN_BLOCK   = 1.5;
+const DRAIN_DIVE    = 8;
 const DRAIN_RECEIVE = 1;
-const RECOVER_IDLE  = 0.18; // 가만히 있을 때 틱당 회복
+const RECOVER_IDLE  = 0.1; // 가만히 있을 때 틱당 회복
 const JUMP_VY = 13 / LW;
 const DIVE_VX = 18 / LW;
 const DIVE_VY = 3 / LW;
@@ -322,6 +322,7 @@ export const handlers = {
     if (state.phase === "serve" && state.server === entityId) {
       // 서브 플레이어는 맵 끝에 고정, 이동 불가
       es.vx = 0;
+      es.stamina = Math.min(entity.maxStamina, es.stamina + RECOVER_IDLE);
       const justPressed = A && !es.prevAction;
       es.prevAction = A;
       if (justPressed) {

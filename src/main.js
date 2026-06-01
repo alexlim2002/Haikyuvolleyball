@@ -9,23 +9,13 @@ import { generateAssets }     from './game/SpriteGen.js';
 import { TitleScreen }        from './game/TitleScreen.js';
 import { CharacterSelect }    from './game/CharacterSelect.js';
 import { createBotController } from './game/ai/BotController.js';
-import { drawHUD, drawPauseOverlay, drawControlsOverlay } from './game/HUD.js';
+import { drawHUD, drawPauseOverlay } from './game/HUD.js';
 import { drawHitboxes }       from './game/DebugOverlay.js';
-
-const KEYS = {
-  '1P_LEFT':   'KeyA',
-  '1P_RIGHT':  'KeyD',
-  '1P_UP':     'KeyW',
-  '1P_DOWN':   'KeyS',
-  '1P_ACTION': 'ShiftLeft',
-  '1P_CONFIRM': 'Enter',
-  '2P_LEFT':   'ArrowLeft',
-  '2P_RIGHT':  'ArrowRight',
-  '2P_UP':     'ArrowUp',
-  '2P_DOWN':   'ArrowDown',
-  '2P_ACTION': 'ShiftRight',
-  '2P_CONFIRM': 'Enter',
-};
+import { ControlsConfig }     from './game/ControlsConfig.js';
+import {
+  loadBindings, saveBindings, setCurrentBindings,
+  buildKeysMap, buildDirectMap,
+} from './game/KeyBindings.js';
 
 const TPS     = 60;
 const TICK_MS = 1000 / TPS;
@@ -38,12 +28,33 @@ async function main() {
   document.addEventListener('keydown',     () => effector.init(), { once: true });
   document.addEventListener('pointerdown', () => effector.init(), { once: true });
 
-  const assets   = await generateAssets();
+  const assets = await generateAssets();
   effector.setAssets(assets);
 
-  const renderer  = new Renderer(canvas, assets);
-  const inputGen  = initInputSystem({ keyboardMapping: KEYS, touchMapping: {} })();
+  const renderer = new Renderer(canvas, assets);
 
+  // ── 키 바인딩 ────────────────────────────────────────────────────────────
+  let bindings  = loadBindings();
+  setCurrentBindings(bindings);
+
+  const keysMap   = buildKeysMap(bindings);    // mutable — updated in-place on save
+  const directMap = buildDirectMap(bindings);  // mutable — updated in-place on save
+
+  const inputGen = initInputSystem({ keyboardMapping: keysMap, touchMapping: {}, directMapping: directMap })();
+
+  function applyBindings(newBindings) {
+    bindings = newBindings;
+    setCurrentBindings(newBindings);
+    saveBindings(newBindings);
+    const km = buildKeysMap(newBindings);
+    const dm = buildDirectMap(newBindings);
+    Object.keys(keysMap).forEach(k => delete keysMap[k]);
+    Object.assign(keysMap, km);
+    Object.keys(directMap).forEach(k => delete directMap[k]);
+    Object.assign(directMap, dm);
+  }
+
+  // ── 마우스 ───────────────────────────────────────────────────────────────
   function canvasLogical(e) {
     const rect = canvas.getBoundingClientRect();
     return {
@@ -53,6 +64,7 @@ async function main() {
   }
 
   canvas.addEventListener('click', (e) => {
+    if (controlsConfig) return;
     const { lx, ly } = canvasLogical(e);
     if (phase === 'title')  titleScreen.handleClick(lx, ly);
     if (phase === 'select') charSelect.handleClick(lx, ly, e.button);
@@ -60,14 +72,16 @@ async function main() {
 
   canvas.addEventListener('contextmenu', (e) => {
     e.preventDefault();
+    if (controlsConfig) return;
     const { lx, ly } = canvasLogical(e);
     if (phase === 'select') charSelect.handleClick(lx, ly, 2);
   });
 
+  // ── 상태 ─────────────────────────────────────────────────────────────────
   let phase          = 'title';
   let isSinglePlay   = false;
   let paused         = false;
-  let showControls   = false;
+  let controlsConfig = null;
   let spaceHeld      = false;
   document.addEventListener('keydown', (e) => { if (e.code === 'Space') { e.preventDefault(); spaceHeld = true; } });
   document.addEventListener('keyup',   (e) => { if (e.code === 'Space') spaceHeld = false; });
@@ -78,14 +92,26 @@ async function main() {
   let lastTime    = performance.now();
   let accumulator = 0;
 
+  function openControls() {
+    if (controlsConfig) return;
+    controlsConfig = new ControlsConfig(bindings, (newBindings) => {
+      applyBindings(newBindings);
+    });
+  }
+  function closeControls() {
+    if (!controlsConfig) return;
+    controlsConfig.destroy();
+    controlsConfig = null;
+  }
+
   document.addEventListener('keydown', (e) => {
     if (e.code === 'Tab') {
       e.preventDefault();
-      showControls = !showControls;
+      controlsConfig ? closeControls() : openControls();
       return;
     }
     if (e.code === 'Escape') {
-      if (showControls) { showControls = false; return; }
+      if (controlsConfig) { closeControls(); return; }
       if (phase === 'select') goToTitle();
       else if (phase === 'game') paused = !paused;
     }
@@ -133,7 +159,10 @@ async function main() {
       accumulator -= TICK_MS;
       const { value: rawInputs } = inputGen.next();
 
-      if (phase === 'title') {
+      if (controlsConfig) {
+        controlsConfig.tick(rawInputs);
+        // 설정 화면이 열려있는 동안 게임 입력 차단
+      } else if (phase === 'title') {
         const inp = spaceHeld ? { ...rawInputs, '1P_CONFIRM': true, '2P_CONFIRM': true } : rawInputs;
         titleScreen.tick(inp);
       } else if (phase === 'select') {
@@ -173,7 +202,7 @@ async function main() {
       if (paused) drawPauseOverlay(ctx, renderer.width, renderer.height);
     }
 
-    if (showControls) drawControlsOverlay(ctx, renderer.width, renderer.height);
+    if (controlsConfig) controlsConfig.draw(ctx);
 
     requestAnimationFrame(rafLoop);
   }
@@ -183,7 +212,6 @@ async function main() {
 
 const INPUT_SUFFIXES = ['LEFT','RIGHT','UP','DOWN','ACTION','DOUBLE_LEFT','DOUBLE_RIGHT','DOUBLE_UP','DOUBLE_DOWN'];
 
-// 싱글 플레이: 2P 키 입력을 1P에도 반영
 function mergeSingleInputs(raw) {
   const merged = { ...raw };
   for (const s of INPUT_SUFFIXES) {

@@ -1,3 +1,5 @@
+import { getBindings, keyName } from './KeyBindings.js';
+
 export function drawPauseOverlay(ctx, W, H) {
   ctx.fillStyle = "rgba(0,0,0,0.55)";
   ctx.fillRect(0, 0, W, H);
@@ -13,68 +15,6 @@ export function drawPauseOverlay(ctx, W, H) {
   ctx.fillText("Tab — 조작법", W / 2, H / 2 + 64);
 }
 
-export function drawControlsOverlay(ctx, W, H) {
-  ctx.fillStyle = "rgba(0,0,0,0.88)";
-  ctx.fillRect(0, 0, W, H);
-
-  ctx.fillStyle = "#ffdd33";
-  ctx.font = "bold 26px monospace";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "top";
-  ctx.fillText("조작법", W / 2, 18);
-
-  const COL = [
-    { label: "1P  (WASD + ShiftLeft)", x: W * 0.27, color: "#44aaff" },
-    { label: "2P  (←→↑↓ + ShiftRight)", x: W * 0.73, color: "#ff8844" },
-  ];
-  const ROWS = [
-    ["A / D", "이동", "← / →", "이동"],
-    ["W", "점프", "↑", "점프"],
-    ["S", "리시브", "↓", "리시브"],
-    ["ShiftLeft", "스파이크 / 서브", "ShiftRight", "스파이크 / 서브"],
-    ["AA / DD", "다이빙", "←← / →→", "다이빙"],
-    ["WW", "블로킹", "↑↑", "블로킹"],
-  ];
-
-  const startY = 66,
-    rowH = 34;
-
-  for (let ci = 0; ci < 2; ci++) {
-    const col = COL[ci];
-    ctx.fillStyle = col.color;
-    ctx.font = "bold 13px monospace";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "top";
-    ctx.fillText(col.label, col.x, startY);
-
-    ctx.font = "13px monospace";
-    for (let ri = 0; ri < ROWS.length; ri++) {
-      const y = startY + 24 + ri * rowH;
-      const key = ROWS[ri][ci * 2];
-      const desc = ROWS[ri][ci * 2 + 1];
-      ctx.fillStyle = "rgba(255,255,255,0.55)";
-      ctx.textAlign = "right";
-      ctx.fillText(key, col.x + 10, y);
-      ctx.fillStyle = "#fff";
-      ctx.textAlign = "left";
-      ctx.fillText(" — " + desc, col.x + 14, y);
-    }
-  }
-
-  const comY = startY + 24 + ROWS.length * rowH + 10;
-  ctx.fillStyle = "rgba(255,255,255,0.35)";
-  ctx.font = "12px monospace";
-  ctx.textAlign = "center";
-  ctx.fillText(
-    "Esc — 일시정지  |  Enter — 확인  |  Tab — 조작법 열기/닫기",
-    W / 2,
-    comY,
-  );
-
-  ctx.fillStyle = "rgba(255,255,255,0.5)";
-  ctx.font = "13px monospace";
-  ctx.fillText("Esc — 닫기", W / 2, H - 20);
-}
 
 function drawStaminaBar(ctx, stamina, maxStamina, x, y, w, h) {
   const ratio = maxStamina > 0 ? Math.max(0, stamina / maxStamina) : 0;
@@ -133,7 +73,8 @@ export function drawHUD(ctx, state, W, H, botController, entityManager) {
   // 서브 오버레이
   if (state.phase === "serve") {
     const who = state.server === "player1" ? "1P" : "2P";
-    const key = state.server === "player1" ? "ShiftLeft" : "ShiftRight";
+    const _b  = getBindings();
+    const key = state.server === 'player1' ? keyName(_b.p1.action) : keyName(_b.p2.action);
     const step = state.serveStep === "ready" ? `${key}: 토스` : `${key}: 서브`;
     const oy = H * 0.22 + 66;
     ctx.fillStyle = "rgba(0,0,0,0.60)";

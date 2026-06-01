@@ -65,9 +65,8 @@ function toDoubleInput(input) {
  *
  * @returns {() => AsyncGenerator<{ [inputType: string]: boolean }>}
  */
-export function initInputSystem({ keyboardMapping, touchMapping }) {
-  const fromKeyboard = mappingFnFrom(keyboardMapping);
-  // TODO: const fromTouch = mappingFnFrom(touchMapping);
+export function initInputSystem({ keyboardMapping, touchMapping, directMapping = {} }) {
+  // keyboardMapping and directMapping are mutable objects — updated externally when bindings change
 
   const emptyTable = () =>
     Object.fromEntries(Object.keys(InputType).map((k) => [k, false]));
@@ -79,14 +78,30 @@ export function initInputSystem({ keyboardMapping, touchMapping }) {
 
   let double = { input: null, time: -Infinity, phase: 0 };
 
-  window.addEventListener("keydown", (e) => {
-    let input = fromKeyboard(e.code);
-    if (fromKeyboard("ShiftRight") && e.keyCode === 16 && e.location === 0) {
-      input = fromKeyboard("ShiftRight");
+  function resolveInput(code) {
+    const revMap = swapKeyVal(keyboardMapping);
+    let input = InputType[revMap[code]];
+    // Special: ambiguous Shift (location=0) → treat as ShiftRight if mapped
+    if (revMap['ShiftRight'] && code === 'ShiftRight') input = InputType[revMap['ShiftRight']];
+    if (revMap['ShiftRight'] && code === 'ShiftLeft' && input === undefined) {
+      // no-op, ShiftLeft not mapped to ShiftRight
     }
-    if (input === undefined) {
+    return input;
+  }
+
+  window.addEventListener("keydown", (e) => {
+    // Direct mapping (single-key dive/block)
+    if (Object.prototype.hasOwnProperty.call(directMapping, e.code)) {
+      stateTable[directMapping[e.code]] = true;
       return;
     }
+
+    const revMap = swapKeyVal(keyboardMapping);
+    let input = InputType[revMap[e.code]];
+    if (revMap['ShiftRight'] && e.keyCode === 16 && e.location === 0) {
+      input = InputType[revMap['ShiftRight']];
+    }
+    if (input === undefined) return;
 
     const now = performance.now();
     const doubleInput = toDoubleInput(input);
@@ -104,9 +119,14 @@ export function initInputSystem({ keyboardMapping, touchMapping }) {
   });
 
   window.addEventListener("keyup", (e) => {
-    let input = fromKeyboard(e.code);
-    if (fromKeyboard("ShiftRight") && e.keyCode === 16 && e.location === 0) {
-      input = fromKeyboard("ShiftRight");
+    if (Object.prototype.hasOwnProperty.call(directMapping, e.code)) {
+      stateTable[directMapping[e.code]] = false;
+      return;
+    }
+    const revMap = swapKeyVal(keyboardMapping);
+    let input = InputType[revMap[e.code]];
+    if (revMap['ShiftRight'] && e.keyCode === 16 && e.location === 0) {
+      input = InputType[revMap['ShiftRight']];
     }
     if (input === undefined) return;
     stateTable[input] = false;
