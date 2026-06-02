@@ -5,8 +5,10 @@
 
 import { CHARACTERS } from './Characters.js';
 
-const ASSET_ROOT = '/asset';
-const assetPath = path => `${ASSET_ROOT}/${path}`;
+function assetPath(path) {
+  const base = new URL('../asset/', import.meta.url).href;
+  return base + path.split('/').map(encodeURIComponent).join('/');
+}
 
 async function bmp(canvas) {
   return createImageBitmap(canvas);
@@ -312,7 +314,7 @@ export async function generateAssets() {
   }
 
   function soundURL(file) {
-    return assetPath(`sound/${encodeURIComponent(file)}`);
+    return assetPath(`sound/${file}`);
   }
   async function loadSFX(file) {
     try {

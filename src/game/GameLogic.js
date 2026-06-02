@@ -39,11 +39,12 @@ const APEX_THRESHOLD = 2 / LW;
 const BALL_GRAVITY = 0.05 / LW;
 const BALL_REST = 0.9;
 
-const BALL_SPEED_THRESHOLD  = 12 / LW;
-const CHEER_SPEED_SCORE     = 14 / LW; // 득점 시 함성 임계값 (높게)
-const CHEER_SPEED_HIGH      = 20 / LW; // 순수 속도 함성 임계값 (매우 높게)
-const CHEER_COOLDOWN_TICKS  = 300;     // 5초 (60fps 기준)
+const BALL_SPEED_THRESHOLD = 12 / LW;
+const CHEER_SPEED_SCORE = 14 / LW;
+const CHEER_SPEED_HIGH = 20 / LW;
+const CHEER_COOLDOWN_TICKS = 300;
 const BALL_R = 18 / LW;
+const RECEIVE_HRANGE = DIVE_VX * 5;
 const ARM_LEN = 35 / LW;
 const RECEIVE_R = 55 / LW;
 const P_SIZE = { w: 80 / LW, h: 80 / LW };
@@ -118,11 +119,15 @@ function makePlayerActionsFor(hitboxes) {
       sprites: PLAYER_SPRITES.DIVE,
       getHitbox: hitboxes.DIVE,
     },
+    RECEIVE_READY: {
+      duration: 0,
+      sprites: PLAYER_SPRITES.RECEIVE,
+      getHitbox: hitboxes.IDLE,
+    },
     RECEIVE: {
-      duration: 15,
+      duration: 17,
       sprites: PLAYER_SPRITES.RECEIVE,
       getHitbox: hitboxes.RECEIVE,
-      actionRange: { ox: 0, oy: 0.03, r: RECEIVE_R },
     },
     SERVE: {
       duration: 0,
@@ -397,11 +402,16 @@ export const handlers = {
           }
           state.serveStep = "tossed";
           es.serveBuffer = 0;
-          return { action: "SERVE", dvx: 0, dvy: 0, sfx: ['sfx_ball_soft'] };
+          return { action: "SERVE", dvx: 0, dvy: 0, sfx: ["sfx_ball_soft"] };
         } else if (state.serveStep === "tossed") {
           if (executeServe(state, entity)) {
             es.serveBuffer = 0;
-            return { action: "SERVE_HIT", dvx: 0, dvy: 0, sfx: ['sfx_ball_hard'] };
+            return {
+              action: "SERVE_HIT",
+              dvx: 0,
+              dvy: 0,
+              sfx: ["sfx_ball_hard"],
+            };
           }
           // 범위 밖이면 20틱 버퍼 — 공이 범위에 들어올 때 자동 실행
           es.serveBuffer = 20;
@@ -413,7 +423,12 @@ export const handlers = {
         es.serveBuffer--;
         if (executeServe(state, entity)) {
           es.serveBuffer = 0;
-          return { action: "SERVE_HIT", dvx: 0, dvy: 0, sfx: ['sfx_ball_hard'] };
+          return {
+            action: "SERVE_HIT",
+            dvx: 0,
+            dvy: 0,
+            sfx: ["sfx_ball_hard"],
+          };
         }
       }
 
@@ -433,6 +448,35 @@ export const handlers = {
     }
 
     const locked = es.actionDuration > 0 && es.actionTick < es.actionDuration;
+
+    // RECEIVE_READY: 리시브 대기 상태
+    if (es.actionType === "RECEIVE_READY") {
+      es.vx = 0;
+      es.stamina = Math.min(entity.maxStamina, es.stamina + RECOVER_IDLE);
+      if (!D || !es.onGround) {
+        return { action: "IDLE", dvx: 0, dvy: 0 };
+      }
+      const bs = state.ball;
+      if (bs) {
+        const dx = bs.x - es.x;
+        const dy = bs.y - es.y;
+        if (Math.abs(dx) <= RECEIVE_HRANGE && dy >= 0 && dy <= entity.size.h) {
+          const facing = dx >= 0 ? 1 : -1;
+          es.facing = facing;
+          const minDist = BALL_R + entity.size.w / 2 + 5 / LW;
+          es.x = bs.x - facing * minDist;
+          es.y = 0;
+          es.vx = 0;
+          es.vy = 0;
+          bs.vx = 0;
+          bs.vy = 10 / LW;
+          bs.actionRangeCooldown = 15;
+          es.stamina = Math.max(0, es.stamina - DRAIN_DIVE);
+          return { action: "RECEIVE", dvx: 0, dvy: 0, sfx: ["sfx_ball_soft"] };
+        }
+      }
+      return null;
+    }
 
     // DIVE 감속 (매 틱)
     if (es.actionType === "DIVE") es.vx *= 0.92;
@@ -478,10 +522,9 @@ export const handlers = {
       return { action: "SPIKE", dvx: 0, dvy: 0 };
     }
 
-    // 리시브 (지상)
+    // 리시브 대기 (지상 전용)
     if (D && es.onGround) {
-      es.stamina = Math.max(0, es.stamina - DRAIN_RECEIVE);
-      return { action: "RECEIVE", dvx: 0, dvy: 0 };
+      return { action: "RECEIVE_READY", dvx: 0, dvy: 0 };
     }
 
     // 점프
@@ -531,7 +574,9 @@ export const handlers = {
   onBallHitFloor(state, side) {
     const bs = state.ball;
     const speed = bs ? Math.hypot(bs.vx, bs.vy) : 0;
-    const sfx = [speed > BALL_SPEED_THRESHOLD ? 'sfx_ball_hard' : 'sfx_ball_soft'];
+    const sfx = [
+      speed > BALL_SPEED_THRESHOLD ? "sfx_ball_hard" : "sfx_ball_soft",
+    ];
 
     if (state.phase === "serve") {
       if (!window.noScore) {
@@ -540,7 +585,10 @@ export const handlers = {
         state.lastScorer = scorer;
         state.phase = "point";
         state.pointTimer = POINT_PAUSE_TICKS;
-        if (bs) { bs.vx = 0; bs.vy = 0; }
+        if (bs) {
+          bs.vx = 0;
+          bs.vy = 0;
+        }
       }
       return sfx;
     }
@@ -551,8 +599,11 @@ export const handlers = {
       state.lastScorer = scorer;
       state.phase = "point";
       state.pointTimer = POINT_PAUSE_TICKS;
-      if (bs) { bs.vx = 0; bs.vy = 0; }
-      if (speed > CHEER_SPEED_SCORE) sfx.push('sfx_crowd');
+      if (bs) {
+        bs.vx = 0;
+        bs.vy = 0;
+      }
+      if (speed > CHEER_SPEED_SCORE) sfx.push("sfx_crowd");
     }
     return sfx;
   },
@@ -560,17 +611,29 @@ export const handlers = {
   onBallHitWall(state) {
     const bs = state.ball;
     if (!bs) return;
-    return [Math.hypot(bs.vx, bs.vy) > BALL_SPEED_THRESHOLD ? 'sfx_ball_hard' : 'sfx_ball_soft'];
+    return [
+      Math.hypot(bs.vx, bs.vy) > BALL_SPEED_THRESHOLD
+        ? "sfx_ball_hard"
+        : "sfx_ball_soft",
+    ];
   },
   onBallHitNet(state) {
     const bs = state.ball;
     if (!bs) return;
-    return [Math.hypot(bs.vx, bs.vy) > BALL_SPEED_THRESHOLD ? 'sfx_ball_hard' : 'sfx_ball_soft'];
+    return [
+      Math.hypot(bs.vx, bs.vy) > BALL_SPEED_THRESHOLD
+        ? "sfx_ball_hard"
+        : "sfx_ball_soft",
+    ];
   },
   onBallHitPlayer(state, _entityId, _hit) {
     const bs = state.ball;
     if (!bs) return;
-    return [Math.hypot(bs.vx, bs.vy) > BALL_SPEED_THRESHOLD ? 'sfx_ball_hard' : 'sfx_ball_soft'];
+    return [
+      Math.hypot(bs.vx, bs.vy) > BALL_SPEED_THRESHOLD
+        ? "sfx_ball_hard"
+        : "sfx_ball_soft",
+    ];
   },
 
   onBallInActionRange(state, entityId, entity, actionType) {
@@ -597,22 +660,12 @@ export const handlers = {
       const SPEED = (14 / LW) * power;
       bs.vx = (fx / fl) * SPEED;
       bs.vy = (fy / fl) * SPEED;
-    } else if (actionType === "RECEIVE") {
-      // 플레이어→공 방향과 "위" 방향을 블렌딩
-      const dx = bs.x - ps.x,
-        dy = bs.y - ps.y;
-      const len = Math.hypot(dx, dy) || 1;
-      const rawX = dx / len,
-        rawY = dy / len;
-      const BIAS = 0.5;
-      const fx = rawX * (1 - BIAS);
-      const fy = rawY * (1 - BIAS) + BIAS; // 위쪽 편향
-      const fl = Math.hypot(fx, fy);
-      const SPEED = 10 / LW;
-      bs.vx = (fx / fl) * SPEED;
-      bs.vy = (fy / fl) * SPEED;
     }
-    return [Math.hypot(bs.vx, bs.vy) > BALL_SPEED_THRESHOLD ? 'sfx_ball_hard' : 'sfx_ball_soft'];
+    return [
+      Math.hypot(bs.vx, bs.vy) > BALL_SPEED_THRESHOLD
+        ? "sfx_ball_hard"
+        : "sfx_ball_soft",
+    ];
   },
 
   onTick: tickGameRule,
@@ -628,7 +681,7 @@ export function tickGameRule(state) {
       const speed = Math.hypot(state.ball.vx, state.ball.vy);
       if (speed > CHEER_SPEED_HIGH) {
         state.cheerCooldown = CHEER_COOLDOWN_TICKS;
-        return ['sfx_crowd'];
+        return ["sfx_crowd"];
       }
     }
   }
