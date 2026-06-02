@@ -84,7 +84,7 @@ export class GameLoop {
     }
 
     // 틱 종료 후 훅 (게임 규칙 타이머 등)
-    h.onTick?.(next);
+    { const sfx = h.onTick?.(next); if (Array.isArray(sfx)) toPlay.push(...sfx); }
 
     return { nextState: next, toPlay };
   }
@@ -179,7 +179,7 @@ export class GameLoop {
         bs.vx = newVelA.x;
         bs.vy = newVelA.y;
         bs.y += hit.ny * hit.depth;
-        h.onBallHitFloor?.(state, bs.x < map.w / 2 ? 'left' : 'right');
+        { const sfx = h.onBallHitFloor?.(state, bs.x < map.w / 2 ? 'left' : 'right'); if (sfx) toPlay.push(...sfx); }
         continue;
       }
       // 좌/우/상단 벽 반사
@@ -192,6 +192,7 @@ export class GameLoop {
       bs.vy = newVelA.y;
       bs.x += hit.nx * hit.depth;
       bs.y += hit.ny * hit.depth;
+      { const sfx = h.onBallHitWall?.(state); if (sfx) toPlay.push(...sfx); }
     }
 
     // 5. 네트 충돌
@@ -214,7 +215,7 @@ export class GameLoop {
           bs.vy = newVelA.y;
           bs.x += netHit.nx * netHit.depth;
           bs.y += netHit.ny * netHit.depth;
-          h.onBallHitNet?.(state);
+          { const sfx = h.onBallHitNet?.(state); if (sfx) toPlay.push(...sfx); }
         }
       }
     }
@@ -252,7 +253,7 @@ export class GameLoop {
         bs.vy = newVelA.y;
         bs.x += hit.nx * hit.depth;
         bs.y += hit.ny * hit.depth;
-        h.onBallHitPlayer?.(state, entity.id, hit);
+        { const sfx = h.onBallHitPlayer?.(state, entity.id, hit); if (sfx) toPlay.push(...sfx); }
       }
 
       // SPIKE/SKILL: arm 상단 끝점 기준 범위 탐지
@@ -269,7 +270,7 @@ export class GameLoop {
           if ((bs.x - ps.x) * ps.facing > 0 &&
               bs.y > topY &&
               Math.hypot(bs.x - topX, bs.y - topY) <= armLen) {
-            h.onBallInActionRange?.(state, entity.id, entity, ps.actionType);
+            { const sfx = h.onBallInActionRange?.(state, entity.id, entity, ps.actionType); if (sfx) toPlay.push(...sfx); }
             bs.actionRangeCooldown = 15;
           }
         }
@@ -280,7 +281,7 @@ export class GameLoop {
           ps.actionType === 'RECEIVE' && actionDef.actionRange) {
         const { ox, oy, r } = actionDef.actionRange;
         if (Math.hypot(bs.x - (ps.x + ox), bs.y - (ps.y + oy)) <= r) {
-          h.onBallInActionRange?.(state, entity.id, entity, 'RECEIVE');
+          { const sfx = h.onBallInActionRange?.(state, entity.id, entity, 'RECEIVE'); if (sfx) toPlay.push(...sfx); }
           bs.actionRangeCooldown = 15;
         }
       }

@@ -9,14 +9,16 @@ export class TitleScreen {
   #prevAction2 = false;
   #onSelect;
   #assets;
+  #effector;
 
   // onSelect(mode) — mode: 'single' | 'multi'
   // actionAlreadyHeld: 진입 시점에 ACTION 키가 눌려있으면 true — 즉시 선택 방지
-  constructor(onSelect, actionAlreadyHeld = false, assets = null) {
+  constructor(onSelect, actionAlreadyHeld = false, assets = null, effector = null) {
     this.#onSelect = onSelect;
     this.#prevAction1 = actionAlreadyHeld;
     this.#prevAction2 = actionAlreadyHeld;
     this.#assets = assets;
+    this.#effector = effector;
   }
 
   tick(inputs) {
@@ -24,12 +26,17 @@ export class TitleScreen {
     const down = !!(inputs["1P_DOWN"] || inputs["2P_DOWN"]);
     const confirm = !!(inputs["1P_CONFIRM"] || inputs["2P_CONFIRM"]);
 
-    if (up && !this.#prevUp)
+    if (up && !this.#prevUp) {
       this.#selectedIdx = (this.#selectedIdx - 1 + 2) % 2;
-    if (down && !this.#prevDown)
+      this.#effector?.play(['sfx_cursor']);
+    }
+    if (down && !this.#prevDown) {
       this.#selectedIdx = (this.#selectedIdx + 1) % 2;
+      this.#effector?.play(['sfx_cursor']);
+    }
 
     if (confirm && !this.#prevAction1 && !this.#prevAction2) {
+      this.#effector?.play(['sfx_select']);
       this.#onSelect(this.#selectedIdx === 0 ? "single" : "multi");
     }
 
@@ -46,9 +53,11 @@ export class TitleScreen {
       const cy = TitleScreen.ITEM_Y[i];
       if (ly >= cy - 10 && ly <= cy + 30) {
         if (this.#selectedIdx === i) {
+          this.#effector?.play(['sfx_select']);
           this.#onSelect(i === 0 ? "single" : "multi");
         } else {
           this.#selectedIdx = i;
+          this.#effector?.play(['sfx_cursor']);
         }
         return;
       }
@@ -89,7 +98,7 @@ export class TitleScreen {
     ctx.font = "bold 12px monospace";
     ctx.textAlign = "center";
     ctx.textBaseline = "top";
-    ctx.fillText("↑↓ / 클릭 / Space·Enter 확인  /  Tab — 조작법", LW / 2, 378);
+    ctx.fillText("↑↓ / 클릭 / Space·Enter 확인  /  Tab — 조작법·사운드 설정", LW / 2, 378);
 
     // 선택 테두리
     const cy = TitleScreen.ITEM_Y[this.#selectedIdx];

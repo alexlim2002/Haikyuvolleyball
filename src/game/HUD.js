@@ -13,7 +13,7 @@ export function drawPauseOverlay(ctx, W, H) {
   ctx.fillStyle = "rgba(255,255,255,0.7)";
   ctx.fillText("Esc — 재개", W / 2, H / 2 + 8);
   ctx.fillText("Enter — 타이틀로", W / 2, H / 2 + 36);
-  ctx.fillText("Tab — 조작법", W / 2, H / 2 + 64);
+  ctx.fillText("Tab — 조작법·사운드 설정", W / 2, H / 2 + 64);
 }
 
 

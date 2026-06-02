@@ -39,6 +39,10 @@ const APEX_THRESHOLD = 2 / LW;
 const BALL_GRAVITY = 0.05 / LW;
 const BALL_REST = 0.9;
 
+const BALL_SPEED_THRESHOLD  = 12 / LW;
+const CHEER_SPEED_SCORE     = 14 / LW; // 득점 시 함성 임계값 (높게)
+const CHEER_SPEED_HIGH      = 20 / LW; // 순수 속도 함성 임계값 (매우 높게)
+const CHEER_COOLDOWN_TICKS  = 300;     // 5초 (60fps 기준)
 const BALL_R = 18 / LW;
 const ARM_LEN = 35 / LW;
 const RECEIVE_R = 55 / LW;
@@ -292,6 +296,7 @@ function makeInitialState(serveLeft, score, sets, p1Stamina, p2Stamina) {
     sets: sets ?? { p1: 0, p2: 0 },
     lastScorer: serveLeft ? "p1" : "p2",
     pointTimer: 0,
+    cheerCooldown: 0,
   };
 }
 
@@ -524,36 +529,49 @@ export const handlers = {
   },
 
   onBallHitFloor(state, side) {
+    const bs = state.ball;
+    const speed = bs ? Math.hypot(bs.vx, bs.vy) : 0;
+    const sfx = [speed > BALL_SPEED_THRESHOLD ? 'sfx_ball_hard' : 'sfx_ball_soft'];
+
     if (state.phase === "serve") {
-      // 서브 도중 공이 떨어지면 폴트 → 상대방 득점
-      if (window.noScore) return;
-      const scorer = state.serverSide === "left" ? "p2" : "p1";
+      if (!window.noScore) {
+        const scorer = state.serverSide === "left" ? "p2" : "p1";
+        state.score[scorer]++;
+        state.lastScorer = scorer;
+        state.phase = "point";
+        state.pointTimer = POINT_PAUSE_TICKS;
+        if (bs) { bs.vx = 0; bs.vy = 0; }
+      }
+      return sfx;
+    }
+    if (state.phase !== "rally") return sfx;
+    if (!window.noScore) {
+      const scorer = side === "left" ? "p2" : "p1";
       state.score[scorer]++;
       state.lastScorer = scorer;
       state.phase = "point";
       state.pointTimer = POINT_PAUSE_TICKS;
-      if (state.ball) {
-        state.ball.vx = 0;
-        state.ball.vy = 0;
-      }
-      return;
+      if (bs) { bs.vx = 0; bs.vy = 0; }
+      if (speed > CHEER_SPEED_SCORE) sfx.push('sfx_crowd');
     }
-    if (state.phase !== "rally") return;
-    if (window.noScore) return;
-    const scorer = side === "left" ? "p2" : "p1";
-    state.score[scorer]++;
-    state.lastScorer = scorer;
-    state.phase = "point";
-    state.pointTimer = POINT_PAUSE_TICKS;
-    // 공 정지 (point 페이즈 중 바닥 중복 감지 방지)
-    if (state.ball) {
-      state.ball.vx = 0;
-      state.ball.vy = 0;
-    }
+    return sfx;
   },
 
-  onBallHitNet(_state) {},
-  onBallHitPlayer(_state, _entityId, _hit) {},
+  onBallHitWall(state) {
+    const bs = state.ball;
+    if (!bs) return;
+    return [Math.hypot(bs.vx, bs.vy) > BALL_SPEED_THRESHOLD ? 'sfx_ball_hard' : 'sfx_ball_soft'];
+  },
+  onBallHitNet(state) {
+    const bs = state.ball;
+    if (!bs) return;
+    return [Math.hypot(bs.vx, bs.vy) > BALL_SPEED_THRESHOLD ? 'sfx_ball_hard' : 'sfx_ball_soft'];
+  },
+  onBallHitPlayer(state, _entityId, _hit) {
+    const bs = state.ball;
+    if (!bs) return;
+    return [Math.hypot(bs.vx, bs.vy) > BALL_SPEED_THRESHOLD ? 'sfx_ball_hard' : 'sfx_ball_soft'];
+  },
 
   onBallInActionRange(state, entityId, entity, actionType) {
     const _entity = entity;
@@ -594,6 +612,7 @@ export const handlers = {
       bs.vx = (fx / fl) * SPEED;
       bs.vy = (fy / fl) * SPEED;
     }
+    return [Math.hypot(bs.vx, bs.vy) > BALL_SPEED_THRESHOLD ? 'sfx_ball_hard' : 'sfx_ball_soft'];
   },
 
   onTick: tickGameRule,
@@ -601,6 +620,19 @@ export const handlers = {
 
 // ─── 게임 규칙 틱 (GameLoop 외부에서 호출) ───────────────────────────────────
 export function tickGameRule(state) {
+  // 랠리 중 고속 함성 (쿨다운 적용)
+  if (state.phase === "rally" && state.ball) {
+    if (state.cheerCooldown > 0) {
+      state.cheerCooldown--;
+    } else {
+      const speed = Math.hypot(state.ball.vx, state.ball.vy);
+      if (speed > CHEER_SPEED_HIGH) {
+        state.cheerCooldown = CHEER_COOLDOWN_TICKS;
+        return ['sfx_crowd'];
+      }
+    }
+  }
+
   if (state.phase === "serve") {
     if (state.serveStep === "ready") {
       // 공을 서버 앞쪽에 고정

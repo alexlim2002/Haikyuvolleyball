@@ -16,6 +16,7 @@ import {
   loadBindings, saveBindings, setCurrentBindings,
   buildKeysMap, buildDirectMap, buildDisabledDoubles,
 } from './game/KeyBindings.js';
+import { loadSoundSettings, saveSoundSettings } from './game/SoundSettings.js';
 
 const TPS     = 60;
 const TICK_MS = 1000 / TPS;
@@ -30,8 +31,22 @@ async function main() {
 
   const assets = await generateAssets();
   effector.setAssets(assets);
+  effector.setGain('sfx_ball_hard', 2.0);
+  effector.setGain('sfx_ball_soft', 2.0);
 
   const renderer = new Renderer(canvas, assets);
+
+  // ── 사운드 설정 ──────────────────────────────────────────────────────────
+  let soundSettings = loadSoundSettings();
+  effector.setBGMEnabled(soundSettings.bgm);
+  effector.setSFXEnabled(soundSettings.sfx);
+
+  function applySoundSettings(s) {
+    soundSettings = s;
+    saveSoundSettings(s);
+    effector.setBGMEnabled(s.bgm);
+    effector.setSFXEnabled(s.sfx);
+  }
 
   // ── 키 바인딩 ────────────────────────────────────────────────────────────
   let bindings  = loadBindings();
@@ -97,8 +112,10 @@ async function main() {
 
   function openControls() {
     if (controlsConfig) return;
-    controlsConfig = new ControlsConfig(bindings, (newBindings) => {
+    controlsConfig = new ControlsConfig(bindings, soundSettings, (newBindings) => {
       applyBindings(newBindings);
+    }, (newSound) => {
+      applySoundSettings(newSound);
     });
   }
   function closeControls() {
@@ -130,14 +147,17 @@ async function main() {
   }
 
   function makeTitleScreen(actionAlreadyHeld = false) {
+    effector.playBGM('bgm_title');
     return new TitleScreen((mode) => {
       isSinglePlay = (mode === 'single');
-      charSelect   = new CharacterSelect(assets, startGame, isSinglePlay);
+      charSelect   = new CharacterSelect(assets, startGame, isSinglePlay, effector);
       phase = 'select';
-    }, actionAlreadyHeld, assets);
+    }, actionAlreadyHeld, assets, effector);
   }
 
   function startGame(p1Char, p2Char) {
+    effector.playBGM('bgm_game');
+    effector.play(['sfx_crowd']);
     entityManager = new EntityManager();
     stateSystem   = new StateSystem(initEntities(entityManager, p1Char, p2Char));
     gameLoop      = new GameLoop({ entityManager, physicsMap, handlers });
@@ -151,6 +171,13 @@ async function main() {
     prevShiftPause = false;
     phase          = 'game';
   }
+
+  window.game_end = function() {
+    if (!stateSystem || phase !== 'game') return;
+    const winner = Math.random() < 0.5 ? 'p1' : 'p2';
+    stateSystem.buf.sets[winner] = 2;
+    stateSystem.buf.phase = 'gameover';
+  };
 
   titleScreen = makeTitleScreen();
 
@@ -184,7 +211,17 @@ async function main() {
           prevShiftPause = false;
           let inputs = isSinglePlay ? mergeSingleInputs(rawInputs) : rawInputs;
           if (botController) inputs = withBotInputs(inputs, state, botController);
+          const oldScore = { ...state.score };
+          const oldSets  = { ...state.sets };
+          const oldPhase = state.phase;
           const { nextState, toPlay } = gameLoop.tick(state, inputs);
+          if (nextState.phase === 'gameover' && oldPhase !== 'gameover') {
+            toPlay.push('sfx_win', 'sfx_crowd');
+          } else if (nextState.sets.p1 !== oldSets.p1 || nextState.sets.p2 !== oldSets.p2) {
+            toPlay.push('sfx_setwon', 'sfx_crowd');
+          } else if (nextState.score.p1 !== oldScore.p1 || nextState.score.p2 !== oldScore.p2) {
+            toPlay.push('sfx_score');
+          }
           stateSystem.setState(nextState);
           effector.play(toPlay);
         }

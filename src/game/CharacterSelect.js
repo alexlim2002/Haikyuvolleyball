@@ -29,11 +29,13 @@ export class CharacterSelect {
   #prevL2 = false; #prevR2 = false;
   #prevConfirm = false;
   #onComplete;
+  #effector;
 
-  constructor(assets, onComplete, singlePlay = false) {
+  constructor(assets, onComplete, singlePlay = false, effector = null) {
     this.#assets = assets;
     this.#onComplete = onComplete;
     this.#singlePlay = singlePlay;
+    this.#effector = effector;
     if (singlePlay) {
       // AI 캐릭터 미리 랜덤 결정
       this.#p2Idx = Math.floor(Math.random() * CHARACTERS.length);
@@ -51,12 +53,22 @@ export class CharacterSelect {
       const doP2 = !this.#singlePlay && button === 2;
 
       if (doP1) {
-        if (this.#p1Idx === i) this.#p1Done = !this.#p1Done;
-        else { this.#p1Idx = i; this.#p1Done = false; }
+        if (this.#p1Idx === i) {
+          this.#p1Done = !this.#p1Done;
+          this.#effector?.play([this.#p1Done ? 'sfx_select' : 'sfx_cursor']);
+        } else {
+          this.#p1Idx = i; this.#p1Done = false;
+          this.#effector?.play(['sfx_cursor']);
+        }
       }
       if (doP2) {
-        if (this.#p2Idx === i) this.#p2Done = !this.#p2Done;
-        else { this.#p2Idx = i; this.#p2Done = false; }
+        if (this.#p2Idx === i) {
+          this.#p2Done = !this.#p2Done;
+          this.#effector?.play([this.#p2Done ? 'sfx_select' : 'sfx_cursor']);
+        } else {
+          this.#p2Idx = i; this.#p2Done = false;
+          this.#effector?.play(['sfx_cursor']);
+        }
       }
       return;
     }
@@ -85,12 +97,12 @@ export class CharacterSelect {
     const R1 = !!inputs['1P_RIGHT'];
     const A1 = !!inputs['1P_ACTION'];
     if (A1 && !this.#prev1) {
-      if (!this.#p1Done) this.#p1Done = true;
-      else               this.#p1Done = false;
+      this.#p1Done = !this.#p1Done;
+      this.#effector?.play([this.#p1Done ? 'sfx_select' : 'sfx_cursor']);
     }
     if (!this.#p1Done) {
-      if (L1 && !this.#prevL1) this.#p1Idx = (this.#p1Idx - 1 + CHARACTERS.length) % CHARACTERS.length;
-      if (R1 && !this.#prevR1) this.#p1Idx = (this.#p1Idx + 1) % CHARACTERS.length;
+      if (L1 && !this.#prevL1) { this.#p1Idx = (this.#p1Idx - 1 + CHARACTERS.length) % CHARACTERS.length; this.#effector?.play(['sfx_cursor']); }
+      if (R1 && !this.#prevR1) { this.#p1Idx = (this.#p1Idx + 1) % CHARACTERS.length; this.#effector?.play(['sfx_cursor']); }
     }
     this.#prevL1 = L1; this.#prevR1 = R1; this.#prev1 = A1;
 
@@ -100,12 +112,12 @@ export class CharacterSelect {
       const R2 = !!inputs['2P_RIGHT'];
       const A2 = !!inputs['2P_ACTION'];
       if (A2 && !this.#prev2) {
-        if (!this.#p2Done) this.#p2Done = true;
-        else               this.#p2Done = false;
+        this.#p2Done = !this.#p2Done;
+        this.#effector?.play([this.#p2Done ? 'sfx_select' : 'sfx_cursor']);
       }
       if (!this.#p2Done) {
-        if (L2 && !this.#prevL2) this.#p2Idx = (this.#p2Idx - 1 + CHARACTERS.length) % CHARACTERS.length;
-        if (R2 && !this.#prevR2) this.#p2Idx = (this.#p2Idx + 1) % CHARACTERS.length;
+        if (L2 && !this.#prevL2) { this.#p2Idx = (this.#p2Idx - 1 + CHARACTERS.length) % CHARACTERS.length; this.#effector?.play(['sfx_cursor']); }
+        if (R2 && !this.#prevR2) { this.#p2Idx = (this.#p2Idx + 1) % CHARACTERS.length; this.#effector?.play(['sfx_cursor']); }
       }
       this.#prevL2 = L2; this.#prevR2 = R2; this.#prev2 = A2;
     }
@@ -113,6 +125,7 @@ export class CharacterSelect {
     // 둘 다 확정 후 Enter로 게임 시작
     const confirm = !!(inputs['1P_CONFIRM'] || inputs['2P_CONFIRM']);
     if (this.#p1Done && this.#p2Done && confirm && !this.#prevConfirm) {
+      this.#effector?.play(['sfx_select']);
       this.#onComplete(CHARACTERS[this.#p1Idx], CHARACTERS[this.#p2Idx]);
     }
     this.#prevConfirm = confirm;

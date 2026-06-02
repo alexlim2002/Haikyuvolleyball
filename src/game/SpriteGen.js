@@ -307,5 +307,41 @@ export async function generateAssets() {
   for (const [id, frames] of charEntries) {
     assets[id] = frames;
   }
+
+  function soundURL(file) {
+    const base = new URL('../asset/sound/', import.meta.url).href;
+    return base + encodeURIComponent(file);
+  }
+  async function loadSFX(file) {
+    try {
+      const res = await fetch(soundURL(file));
+      return res.ok ? res.arrayBuffer() : null;
+    } catch { return null; }
+  }
+
+  // BGM: URL string (스트리밍)
+  assets['bgm_title'] = soundURL('배경음악.mp3');
+  assets['bgm_game']  = soundURL('인게임배경음악.mp3');
+
+  // SFX: ArrayBuffer (미리 로딩 → Effector에서 디코딩 후 즉시 재생)
+  const [sfxCursor, sfxSelect, sfxScore, sfxSetwon, sfxWin, sfxHard, sfxSoft, sfxCrowd] = await Promise.all([
+    loadSFX('선택창커서움직임.mp3'),
+    loadSFX('선택.mp3'),
+    loadSFX('득점.mp3'),
+    loadSFX('세트승리.mp3'),
+    loadSFX('승리.mp3'),
+    loadSFX('공튀기는소리(hard).mp3'),
+    loadSFX('공튀기는소리(soft).mp3'),
+    loadSFX('함성.wav'),
+  ]);
+  assets['sfx_cursor']    = sfxCursor;
+  assets['sfx_select']    = sfxSelect;
+  assets['sfx_score']     = sfxScore;
+  assets['sfx_setwon']    = sfxSetwon;
+  assets['sfx_win']       = sfxWin;
+  assets['sfx_ball_hard'] = sfxHard;
+  assets['sfx_ball_soft'] = sfxSoft;
+  assets['sfx_crowd']     = sfxCrowd;
+
   return assets;
 }
