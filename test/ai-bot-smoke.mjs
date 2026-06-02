@@ -53,7 +53,18 @@ function bot(profile = 'rally', extra = {}) {
     player1: { x: 0.46, y: 0, vx: 0, vy: 0.002, facing: 1, onGround: false, actionType: 'JUMP', actionTick: 5, actionDuration: 0, stamina: 120 },
     ball: { x: 0.52, y: 0.28, vx: 0.002, vy: -0.001, actionRangeCooldown: 0 },
   }));
-  assert.equal(inputs['2P_DOUBLE_UP'], true, 'high net threat should trigger BLOCK');
+  assert.equal(inputs['2P_ACTION'], true, 'aggressive high net threat should prioritize SPIKE when attackable');
+}
+
+
+{
+  const ai = bot('rally');
+  const inputs = ai.makeInputs(baseState({
+    player2: { x: 0.565, y: 0, vx: 0, vy: 0, facing: -1, onGround: true, actionType: 'IDLE', actionTick: 0, actionDuration: 0, stamina: 120 },
+    player1: { x: 0.46, y: 0, vx: 0, vy: 0.002, facing: 1, onGround: false, actionType: 'JUMP', actionTick: 5, actionDuration: 0, stamina: 120 },
+    ball: { x: 0.52, y: 0.28, vx: 0.002, vy: -0.001, actionRangeCooldown: 0 },
+  }));
+  assert.equal(inputs['2P_DOUBLE_UP'], true, 'rally high net threat should still trigger BLOCK');
 }
 
 {
@@ -128,7 +139,7 @@ function bot(profile = 'rally', extra = {}) {
     player1: { x: 0.45, y: 0, vx: 0, vy: 0.002, facing: 1, onGround: false, actionType: 'JUMP', actionTick: 5, actionDuration: 0, stamina: 120 },
     ball: { x: 0.535, y: 0.27, vx: 0.001, vy: -0.001, actionRangeCooldown: 0 },
   }));
-  assert.equal(inputs['2P_DOUBLE_UP'], true, 'aggressive profile should block more freely near the net');
+  assert.equal(inputs['2P_ACTION'], true, 'aggressive profile should spike more freely near the net when attackable');
 }
 
 {

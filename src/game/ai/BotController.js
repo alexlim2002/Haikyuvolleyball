@@ -68,7 +68,7 @@ const BOT_TUNING = {
     receive: 5,
     dive: 22,
     jump: 10,
-    spike: 13,
+    spike: 10,
     block: 12,
     serveAction: 8,
     serveJump: 18,
@@ -84,14 +84,15 @@ const AI_PROFILES = {
     predictionBlend: 0.88,
     receiveMultiplier: 1.05,
     diveMultiplier: 1.08,
-    spikeMultiplier: 1.24,
-    blockMultiplier: 1.36,
+    spikeMultiplier: 1.52,
+    spikeFreedom: 0.32,
+    blockMultiplier: 1.30,
     skillFreedom: 0.18,
-    jumpLeadBonus: 5,
+    jumpLeadBonus: 7,
     blockLeadBonus: 5,
     diveLeadBonus: -1,
     netPatrol: 0.092,
-    actionCooldownScale: 0.82,
+    actionCooldownScale: 0.72,
     preferJumpServe: true,
   },
   defensive: {
@@ -103,6 +104,7 @@ const AI_PROFILES = {
     receiveMultiplier: 1.42,
     diveMultiplier: 1.38,
     spikeMultiplier: 0.84,
+    spikeFreedom: 0.04,
     blockMultiplier: 1.08,
     skillFreedom: 0.26,
     jumpLeadBonus: 2,
@@ -120,7 +122,8 @@ const AI_PROFILES = {
     predictionBlend: 0.91,
     receiveMultiplier: 1.22,
     diveMultiplier: 1.18,
-    spikeMultiplier: 1.00,
+    spikeMultiplier: 1.08,
+    spikeFreedom: 0.12,
     blockMultiplier: 1.14,
     skillFreedom: 0.16,
     jumpLeadBonus: 3,
@@ -419,6 +422,12 @@ function chooseAction(inputs, context, prediction) {
     return "DIVE";
   }
 
+  if (context.profileId === "aggressive" && shouldSpike(context, prediction) && canUseAction("spike", context, urgency)) {
+    inputs[inputName(context.playerSide, "ACTION")] = true;
+    setCooldown("spike", context, urgency);
+    return "SPIKE";
+  }
+
   if (shouldBlock(context, prediction) && canUseAction("block", context, urgency)) {
     inputs[inputName(context.playerSide, "DOUBLE_UP")] = true;
     setCooldown("block", context, urgency);
@@ -493,23 +502,26 @@ function shouldBlock(context, prediction) {
 function shouldSpike(context, _prediction) {
   const { player, ball, playerSide, netX, profile } = context;
   const inMyCourt = isInMyCourt(ball.x, playerSide, netX);
+  const spikeFreedom = profile.spikeFreedom ?? 0;
   const inFront = (ball.x - player.x) * getFacingTowardOpponent(playerSide) > 0;
   const dx = Math.abs(ball.x - player.x);
   const dy = Math.abs(ball.y - (player.y + 0.10));
-  const heightOk = ball.y >= BOT_TUNING.attackMinY && ball.y <= BOT_TUNING.attackMaxY;
-  const rangeOk = dx <= BOT_TUNING.spikeRangeX * profile.spikeMultiplier && dy <= BOT_TUNING.spikeRangeY * profile.spikeMultiplier;
-  const attackableCourt = inMyCourt || Math.abs(ball.x - netX) <= 0.12;
-  return inFront && heightOk && rangeOk && attackableCourt;
+  const heightOk = ball.y >= BOT_TUNING.attackMinY - spikeFreedom * 0.05 && ball.y <= BOT_TUNING.attackMaxY + spikeFreedom * 0.12;
+  const rangeOk = dx <= BOT_TUNING.spikeRangeX * profile.spikeMultiplier + spikeFreedom * 0.06 && dy <= BOT_TUNING.spikeRangeY * profile.spikeMultiplier + spikeFreedom * 0.08;
+  const attackableCourt = inMyCourt || Math.abs(ball.x - netX) <= 0.12 + spikeFreedom * 0.18;
+  const committedAttack = !player.onGround || context.profileId === "aggressive";
+  return committedAttack && inFront && heightOk && rangeOk && attackableCourt;
 }
 
 function shouldJump(context, prediction) {
   const { player, ball, playerSide, netX, profile } = context;
   if (!player.onGround) return false;
   const intercept = prediction.intercept;
-  const closeX = Math.abs((intercept?.x ?? ball.x) - player.x) < BOT_TUNING.spikeRangeX * 1.15;
+  const spikeFreedom = profile.spikeFreedom ?? 0;
+  const closeX = Math.abs((intercept?.x ?? ball.x) - player.x) < BOT_TUNING.spikeRangeX * (1.15 + spikeFreedom * 1.1);
   const speedBonus = prediction.speed >= BOT_TUNING.fastBallSpeed ? BOT_TUNING.fastJumpLeadBonus : 0;
-  const leadTicks = BOT_TUNING.jumpLeadTicks + profile.jumpLeadBonus + speedBonus;
-  const highEnough = (intercept?.y ?? ball.y) > BOT_TUNING.attackMinY;
+  const leadTicks = BOT_TUNING.jumpLeadTicks + profile.jumpLeadBonus + speedBonus + Math.round(spikeFreedom * 16);
+  const highEnough = (intercept?.y ?? ball.y) > BOT_TUNING.attackMinY - spikeFreedom * 0.04;
   const coming = isInMyCourt(ball.x, playerSide, netX) || prediction.willEnterMyCourt || ballMovingTowardSide(ball, playerSide);
   return coming && closeX && highEnough && (intercept?.tick ?? 0) <= leadTicks;
 }
@@ -520,7 +532,8 @@ function canUseAction(actionName, context, urgency = 0) {
 
   const freedom = context.profile?.skillFreedom ?? 0;
   const skillAction = actionName === "receive" || actionName === "dive" || actionName === "block";
-  const urgencyGate = skillAction ? 0.58 - freedom * 0.7 : 0.85;
+  const spikeFreedom = actionName === "spike" ? context.profile?.spikeFreedom ?? 0 : 0;
+  const urgencyGate = skillAction ? 0.58 - freedom * 0.7 : 0.85 - spikeFreedom * 1.4;
   if (urgency < urgencyGate) return false;
 
   const baseOverride = actionName === "dive" ? 7 : actionName === "receive" ? 5 : actionName === "block" ? 5 : 3;
