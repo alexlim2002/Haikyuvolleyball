@@ -109,6 +109,7 @@ export class GameLoop {
     const transition = this.#handlers.resolveAction(entity.id, entity, state, inputs);
     if (transition) {
       this.#applyAction(es, entity, transition);
+      if (Array.isArray(transition.sfx)) toPlay.push(...transition.sfx);
     }
 
     // 4. 중력 (변곡점 감속은 뷰포트 높이 내에서만)

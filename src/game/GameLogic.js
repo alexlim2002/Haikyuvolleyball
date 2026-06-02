@@ -397,11 +397,11 @@ export const handlers = {
           }
           state.serveStep = "tossed";
           es.serveBuffer = 0;
-          return { action: "SERVE", dvx: 0, dvy: 0 };
+          return { action: "SERVE", dvx: 0, dvy: 0, sfx: ['sfx_ball_soft'] };
         } else if (state.serveStep === "tossed") {
           if (executeServe(state, entity)) {
             es.serveBuffer = 0;
-            return { action: "SERVE_HIT", dvx: 0, dvy: 0 };
+            return { action: "SERVE_HIT", dvx: 0, dvy: 0, sfx: ['sfx_ball_hard'] };
           }
           // 범위 밖이면 20틱 버퍼 — 공이 범위에 들어올 때 자동 실행
           es.serveBuffer = 20;
@@ -413,7 +413,7 @@ export const handlers = {
         es.serveBuffer--;
         if (executeServe(state, entity)) {
           es.serveBuffer = 0;
-          return { action: "SERVE_HIT", dvx: 0, dvy: 0 };
+          return { action: "SERVE_HIT", dvx: 0, dvy: 0, sfx: ['sfx_ball_hard'] };
         }
       }
 
