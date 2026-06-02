@@ -17,6 +17,7 @@ import { resolveBody }     from './engine/Physics.js';
 import { CharacterSelect }    from './game/CharacterSelect.js';
 import { TitleScreen }        from './game/TitleScreen.js';
 import { createBotController } from './game/ai/BotController.js';
+import { TIER }            from './game/Characters.js';
 
 // ─── 키 매핑 ──────────────────────────────────────────────────────────────────
 const KEYS = {
@@ -69,6 +70,9 @@ async function main() {
       playerSide: 'right',
       opponentId: 'player1',
       mapWidth: physicsMap.w,
+      serveTypes: p2Char?.serveTypes ?? ['OVERHAND', 'UNDERHAND'],
+      forcedType: p2Char?.aiType ?? null,
+      maxStamina: TIER.stamina[p2Char?.stats?.stamina ?? '중'],
     }) : null;
     phase = 'game';
   }

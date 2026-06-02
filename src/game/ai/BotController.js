@@ -24,11 +24,26 @@ const DEFAULTS = {
   armLength: 35 / UNIT,
   playerSpeed: 5 / UNIT,
   moveMargin: 9 / UNIT,
+  maxStamina: null,
   reactionDelayTicks: 2,
   maxPredictionTicks: 132,
   profile: null,
   forcedType: null,
   serveTypes: ["OVERHAND", "UNDERHAND"],
+};
+
+const STAMINA_TUNING = {
+  lowRatio: 0.36,
+  criticalRatio: 0.18,
+  emergencyUrgency: 0.82,
+  criticalUrgency: 0.94,
+  costs: {
+    dive: 16,
+    spike: 10,
+    jump: 8,
+    block: 8,
+    serveJump: 8,
+  },
 };
 
 const BOT_TUNING = {
@@ -147,6 +162,7 @@ export function createBotController(config = {}) {
 
   let currentProfileId = normalizeProfileId(cfg.profile ?? cfg.forcedType) ?? chooseRandomProfileId();
   let currentRallyKey = "";
+  let observedMaxStamina = finiteNumber(cfg.maxStamina, null);
   const cooldowns = makeCooldownState();
   let lastDebugInfo = makeInitialDebugInfo(currentProfileId);
 
@@ -171,10 +187,13 @@ export function createBotController(config = {}) {
     }
 
     context.cooldowns = cooldowns;
+    observedMaxStamina = updateObservedMaxStamina(observedMaxStamina, context.player, cfg);
+    context.maxStamina = observedMaxStamina;
+    context.staminaRatio = getStaminaRatio(context);
 
     if (isMyServe(state, cfg)) {
       const selectedAction = playServe(inputs, context);
-      lastDebugInfo = buildDebugInfo(currentProfileId, getCurrentTypeLabel(), null, null, selectedAction, cooldowns);
+      lastDebugInfo = buildDebugInfo(currentProfileId, getCurrentTypeLabel(), null, null, selectedAction, cooldowns, context);
       return inputs;
     }
 
@@ -183,7 +202,7 @@ export function createBotController(config = {}) {
     moveToward(inputs, context, targetInfo.targetX);
     const selectedAction = chooseAction(inputs, context, prediction);
 
-    lastDebugInfo = buildDebugInfo(currentProfileId, getCurrentTypeLabel(), targetInfo, prediction, selectedAction, cooldowns);
+    lastDebugInfo = buildDebugInfo(currentProfileId, getCurrentTypeLabel(), targetInfo, prediction, selectedAction, cooldowns, context);
     return inputs;
   }
 
@@ -239,13 +258,15 @@ function playServe(inputs, context) {
   const inFrontReach = dx > 0 && dx <= armLen * 1.2;
   if (!inFrontReach) return null;
 
-  const preferJump = canJumpServe && (profile.preferJumpServe || !canOverhand || ball.y > groundHeadY + armLen * 0.72);
+  const lowStamina = isLowStamina(context);
+  const mustJumpServe = canJumpServe && !canOverhand && !canUnderhand;
+  const preferJump = canJumpServe && !lowStamina && (profile.preferJumpServe || !canOverhand || ball.y > groundHeadY + armLen * 0.72);
   const jumpReadyY = groundHeadY + armLen * (profile.preferJumpServe ? 0.26 : 0.45);
   const jumpServeHitWindow = ball.y >= headY - BOT_TUNING.serveHitBufferY && ball.y <= headY + armLen + BOT_TUNING.serveHitBufferY;
   const tossRatio = state.serveTossY > 0 ? ball.y / state.serveTossY : 1;
   const jumpHitReady = tossRatio >= (profile.serveHitRatio ?? 0.58) || ball.vy < 0;
 
-  if (preferJump) {
+  if (preferJump || mustJumpServe) {
     if (player.onGround && ball.y >= jumpReadyY && ball.vy >= -BOT_TUNING.serveJumpLeadY && canUseAction("serveJump", context, 1)) {
       inputs[upKey] = true;
       setCooldown("serveJump", context, 1);
@@ -533,7 +554,41 @@ function shouldJump(context, prediction) {
   return coming && closeX && highEnough && (intercept?.tick ?? 0) <= leadTicks;
 }
 
+function hasStaminaBudget(actionName, context, urgency = 0) {
+  const cost = STAMINA_TUNING.costs[actionName] ?? 0;
+  if (cost <= 0) return true;
+
+  const stamina = finiteNumber(context.player?.stamina, context.maxStamina ?? 0);
+  const ratio = getStaminaRatio(context);
+  if (ratio > STAMINA_TUNING.lowRatio && stamina >= cost) return true;
+
+  const critical = ratio <= STAMINA_TUNING.criticalRatio || stamina < cost * 0.5;
+  const requiredUrgency = critical ? STAMINA_TUNING.criticalUrgency : STAMINA_TUNING.emergencyUrgency;
+
+  return urgency >= requiredUrgency && stamina >= cost * 0.35;
+}
+
+function isLowStamina(context) {
+  return getStaminaRatio(context) <= STAMINA_TUNING.lowRatio;
+}
+
+function getStaminaRatio(context) {
+  const stamina = finiteNumber(context.player?.stamina, null);
+  const maxStamina = finiteNumber(context.maxStamina ?? context.cfg?.maxStamina, stamina ?? 120);
+  if (stamina == null || maxStamina <= 0) return 1;
+  return clamp(stamina / maxStamina, 0, 1);
+}
+
+function updateObservedMaxStamina(currentMax, player, cfg) {
+  const configured = finiteNumber(cfg.maxStamina, null);
+  const playerMax = finiteNumber(player?.maxStamina, null);
+  const stamina = finiteNumber(player?.stamina, null);
+  return Math.max(configured ?? 0, playerMax ?? 0, currentMax ?? 0, stamina ?? 0) || null;
+}
+
 function canUseAction(actionName, context, urgency = 0) {
+  if (!hasStaminaBudget(actionName, context, urgency)) return false;
+
   const cooldown = context.cooldowns?.[actionName] ?? 0;
   if (cooldown <= 0) return true;
 
@@ -730,11 +785,12 @@ function makeInitialDebugInfo(profile) {
     interceptY: null,
     interceptTick: null,
     selectedAction: null,
+    staminaRatio: null,
     cooldowns: makeCooldownState(),
   };
 }
 
-function buildDebugInfo(profile, profileLabel, targetInfo, prediction, selectedAction, cooldowns) {
+function buildDebugInfo(profile, profileLabel, targetInfo, prediction, selectedAction, cooldowns, context = null) {
   return {
     profile,
     profileLabel,
@@ -747,6 +803,7 @@ function buildDebugInfo(profile, profileLabel, targetInfo, prediction, selectedA
     interceptTick: prediction?.intercept?.tick ?? null,
     ballSpeed: roundDebug(prediction?.speed),
     selectedAction,
+    staminaRatio: context ? roundDebug(getStaminaRatio(context)) : null,
     cooldowns: { ...cooldowns },
   };
 }

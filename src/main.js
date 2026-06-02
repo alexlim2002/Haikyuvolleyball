@@ -17,6 +17,7 @@ import {
   buildKeysMap, buildDirectMap, buildDisabledDoubles,
 } from './game/KeyBindings.js';
 import { loadSoundSettings, saveSoundSettings } from './game/SoundSettings.js';
+import { TIER }               from './game/Characters.js';
 
 const TPS     = 60;
 const TICK_MS = 1000 / TPS;
@@ -166,6 +167,7 @@ async function main() {
       opponentId: 'player1', mapWidth: physicsMap.w,
       serveTypes: p2Char?.serveTypes ?? ['OVERHAND', 'UNDERHAND'],
       forcedType: p2Char?.aiType ?? null,
+      maxStamina: TIER.stamina[p2Char?.stats?.stamina ?? '중'],
     }) : null;
     paused         = false;
     prevShiftPause = false;
