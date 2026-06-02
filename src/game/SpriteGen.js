@@ -5,6 +5,9 @@
 
 import { CHARACTERS } from './Characters.js';
 
+const ASSET_ROOT = '/asset';
+const assetPath = path => `${ASSET_ROOT}/${path}`;
+
 async function bmp(canvas) {
   return createImageBitmap(canvas);
 }
@@ -286,9 +289,9 @@ async function loadSVG(relPath) {
 // ─── 공개 API ─────────────────────────────────────────────────────────────────
 export async function generateAssets() {
   const [bgImg, startImg, net, ball] = await Promise.all([
-    loadImageBitmap('../asset/background.png'),
-    loadImageBitmap('../asset/start.png'),
-    loadSVG('../asset/net.img.svg'),
+    loadImageBitmap(assetPath('background.png')),
+    loadImageBitmap(assetPath('start.png')),
+    loadSVG(assetPath('net.img.svg')),
     genBall(),
   ]);
 
@@ -297,7 +300,7 @@ export async function generateAssets() {
 
   const charEntries = await Promise.all(
     CHARACTERS.map(async char => {
-      const url    = new URL(`../asset/character/${char.file}`, import.meta.url).href;
+      const url    = assetPath(`character/${char.file}`);
       const frames = await loadImageFrames(url, 127);
       return [char.id, frames];
     })
@@ -309,8 +312,7 @@ export async function generateAssets() {
   }
 
   function soundURL(file) {
-    const base = new URL('../asset/sound/', import.meta.url).href;
-    return base + encodeURIComponent(file);
+    return assetPath(`sound/${encodeURIComponent(file)}`);
   }
   async function loadSFX(file) {
     try {
