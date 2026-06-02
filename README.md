@@ -1,79 +1,75 @@
 # 하이큐 배구
 
-피카츄 배구를 벤치마킹한 순수 HTML/CSS/JS PWA 게임.
+하이큐 캐릭터들로 즐기는 1:1 배구 게임.  
+피카츄 배구에서 영감을 받아 제작한 순수 HTML/CSS/JS 브라우저 게임입니다.
 
----
+[게임하기](haikyuvolleyball.pages.dev)
 
-## 모듈 방향 그래프
+## 실행 방법
 
-```mermaid
-graph TD
-    main["main.js"]
-    GameBuilder
-    AssetStore
-    Effector
-    Renderer
-    InputSystem
-    StateSystem
-    EntityManager
-    Game["Game (internal)"]
-    swapKeyVal["utils/swapKeyVal"]
-    Enum["utils/Enum"]
-    GameLogic["game/GameLogic"]
-    GameRule["game/GameRule"]
-    KeyboardJson["game/Keyboard.json"]
-    TouchJson["game/Touch.json"]
+빌드 후 `dist/index.html`을 로컬 서버로 열면 됩니다.
 
-    main --> GameBuilder
-    GameBuilder --> AssetStore
-    GameBuilder --> Renderer
-    GameBuilder --> Effector
-    GameBuilder --> InputSystem
-    GameBuilder --> Game
+```powershell
+# 빌드
+.\build.ps1
 
-    AssetStore --> Effector
-
-    InputSystem --> swapKeyVal
-    InputSystem --> Enum
-
-    Game --> StateSystem
-    Game --> EntityManager
-
-    StateSystem --> InputSystem
-    StateSystem --> GameLogic
-    StateSystem --> GameRule
-
-    GameBuilder --> KeyboardJson
-    GameBuilder --> TouchJson
+# 로컬 서버 예시 (VS Code Live Server, Python 등)
+python -m http.server --directory dist
 ```
 
----
+> **주의**: `file://`로 직접 열면 ES 모듈 로딩 오류가 발생합니다. 반드시 로컬 서버를 사용하세요.
 
-## 레이어 규칙
+## 게임 소개
 
-| 접미사 | 역할 | 틱 종속 |
-|--------|------|---------|
-| `er` (Renderer, Effector) | 출력·소비 | Renderer=O, Effector=X |
-| `System` (InputSystem, StateSystem) | 입력·생산 (스트림) | O |
-| `Manager` (EntityManager) | 동적 등록/삭제 | X |
-| `Store` (AssetStore) | 읽기전용 데이터 보관 | X |
-| `Builder` (GameBuilder) | 초기화·조립 | X |
+**1P vs 2P** 또는 **1P vs AI** 로 플레이할 수 있는 배구 게임입니다.
 
----
+- 2세트 선취 시 승리 (세트당 15점)
+- 캐릭터마다 스탯(속도, 파워, 체격, 체력)과 서브 타입이 다름
+- 스태미나 시스템 — 무리하면 동작이 느려짐
 
-## 1틱 데이터 흐름
+## 조작법
 
-```mermaid
-sequenceDiagram
-    participant rAF as rAF 루프
-    participant IS as InputSystem
-    participant SS as StateSystem
-    participant R as Renderer
-    participant E as Effector
+### 기본 조작
 
-    rAF->>IS: next()
-    IS-->>SS: inputs 스냅샷
-    SS->>SS: tick(inputs) 상태전이
-    SS->>R: draw(state)
-    SS->>E: play*(interaction)
-```
+|               | 1P                   | 2P                   |
+| ------------- | -------------------- | -------------------- |
+| 이동          | `A` / `D`            | `←` / `→`            |
+| 점프          | `W`                  | `↑`                  |
+| 리시브        | `S`                  | `↓`                  |
+| 스파이크/서브 | `L.Shift`            | `R.Shift`            |
+| 다이빙        | `AA` / `DD` (더블탭) | `←←` / `→→` (더블탭) |
+| 블로킹        | `WW` (더블탭)        | `↑↑` (더블탭)        |
+
+### 서브
+
+1. 스파이크 키를 한 번 누르면 공을 **토스**
+2. 다시 누르면 **타격** — 타이밍에 따라 코스가 달라짐
+3. 점프서브 캐릭터는 토스 후 점프해서 타격 가능
+
+### 기타 키
+
+| 키      | 동작                        |
+| ------- | --------------------------- |
+| `Esc`   | 일시정지 / 메뉴로 돌아가기  |
+| `Tab`   | 조작키 설정 / 사운드 ON·OFF |
+| `Enter` | 확인                        |
+| `Space` | 어디서든 확인               |
+
+## 캐릭터
+
+| 캐릭터          | 특징                     |
+| --------------- | ------------------------ |
+| 히나타 쇼요     | 빠른 속도, 점프서브      |
+| 카게야마 토비오 | 높은 파워, 오버핸드 서브 |
+| 니시노야 유     | 수비 특화, 언더핸드 서브 |
+| 아즈마네 아사히 | 큰 체격, 강력한 파워     |
+| 츠키시마 케이   | 키 큰 체격, 블로킹 유리  |
+
+## 제작팀 소개
+
+경희대학교 중앙 IT동아리 쿠러그(KHLUG) 회원들이 모여 만들었습니다.
+
+- 공통: 게임 구상
+- 임준혁: 캐릭터 및 그래픽
+- 서동진: AI 및 사운드
+- 구자웅: 게임 엔진 및 게임 로직
