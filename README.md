@@ -3,7 +3,7 @@
 하이큐 캐릭터들로 즐기는 1:1 배구 게임.  
 피카츄 배구에서 영감을 받아 제작한 순수 HTML/CSS/JS 브라우저 게임입니다.
 
-[게임하기](haikyuvolleyball.pages.dev)
+[게임하기](https://haikyuvolleyball.pages.dev/)
 
 ## 실행 방법
 
