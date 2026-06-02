@@ -187,6 +187,17 @@ function bot(profile = 'rally', extra = {}) {
 }
 
 {
+  const ai = bot('aggressive', { maxStamina: 120 });
+  const inputs = ai.makeInputs(baseState({
+    player2: { x: 0.74, y: 0, vx: 0, vy: 0, facing: -1, onGround: true, actionType: 'IDLE', actionTick: 0, actionDuration: 0, stamina: 0 },
+    ball: { x: 0.70, y: 0.14, vx: 0.001, vy: -0.003, actionRangeCooldown: 0 },
+  }));
+  assert.equal(inputs['2P_ACTION'], true, 'depleted aggressive bot should clear close attackable balls instead of only receiving');
+  assert.equal(inputs['2P_DOWN'], false, 'low-stamina clear should take priority over RECEIVE to avoid rally stalls');
+  assert.equal(ai.getDebugInfo().selectedAction, 'LOW_STAMINA_CLEAR', 'debug info should identify the low-stamina clear action');
+}
+
+{
   const ai = bot('aggressive', { serveTypes: ['JUMP', 'OVERHAND'], maxStamina: 120 });
   const inputs = ai.makeInputs(baseState({
     phase: 'serve',
