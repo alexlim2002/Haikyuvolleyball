@@ -14,6 +14,8 @@ import { GameLoop }        from './engine/GameLoop.js';
 import { physicsMap, initEntities, handlers } from './game/GameLogic.js';
 import { generateAssets }  from './game/SpriteGen.js';
 import { resolveBody }     from './engine/Physics.js';
+import { CharacterSelect }    from './game/CharacterSelect.js';
+import { TitleScreen }        from './game/TitleScreen.js';
 import { createBotController } from './game/ai/BotController.js';
 
 // ─── 키 매핑 ──────────────────────────────────────────────────────────────────
@@ -46,23 +48,38 @@ async function main() {
   const assets = await generateAssets();
   effector.setAssets(assets);
 
-  const renderer          = new Renderer(canvas, assets);
-  const inputsOfThisTick  = initInputSystem({ keyboardMapping: KEYS, touchMapping: {} });
-  const inputGen          = inputsOfThisTick();
+  const renderer         = new Renderer(canvas, assets);
+  const inputsOfThisTick = initInputSystem({ keyboardMapping: KEYS, touchMapping: {} });
+  const inputGen         = inputsOfThisTick();
 
-  const entityManager = new EntityManager();
-  const initialState  = initEntities(entityManager);
-  const stateSystem   = new StateSystem(initialState);
-  const gameLoop      = new GameLoop({ entityManager, physicsMap, handlers });
-  const botController = createBotController({
-    playerId: 'player2',
-    playerSide: 'right',
-    opponentId: 'player1',
-    mapWidth: physicsMap.w,
-  });
-
+  let phase      = 'title';
+  let charSelect = null;
+  let stateSystem, gameLoop, entityManager, botController;
   let lastTime   = performance.now();
   let accumulator = 0;
+  let isSinglePlay = false;
+
+  function startGame(p1Char, p2Char) {
+    entityManager = new EntityManager();
+    const initialState = initEntities(entityManager, p1Char, p2Char);
+    stateSystem = new StateSystem(initialState);
+    gameLoop    = new GameLoop({ entityManager, physicsMap, handlers });
+    botController = isSinglePlay ? createBotController({
+      playerId: 'player2',
+      playerSide: 'right',
+      opponentId: 'player1',
+      mapWidth: physicsMap.w,
+    }) : null;
+    phase = 'game';
+  }
+
+  const titleScreen = new TitleScreen((mode) => {
+    isSinglePlay = (mode === 'single');
+    charSelect = new CharacterSelect(assets, (p1Char, p2Char) => {
+      startGame(p1Char, p2Char);
+    });
+    phase = 'select';
+  });
 
   function rafLoop(timestamp) {
     accumulator += Math.min(timestamp - lastTime, 50);
@@ -70,34 +87,45 @@ async function main() {
 
     while (accumulator >= TICK_MS) {
       accumulator -= TICK_MS;
-      const state = stateSystem.buf;
-      if (state.phase !== 'gameover') {
-        const { value: rawInputs } = inputGen.next();
-        const inputs = withBotInputs(rawInputs, state, botController);
-        const { nextState, toPlay } = gameLoop.tick(state, inputs);
-        stateSystem.setState(nextState);
-        effector.play(toPlay);
+      const { value: rawInputs } = inputGen.next();
+
+      if (phase === 'title') {
+        titleScreen.tick(rawInputs);
+      } else if (phase === 'select') {
+        charSelect.tick(rawInputs);
+      } else {
+        const state = stateSystem.buf;
+        if (state.phase !== 'gameover') {
+          const inputs = botController ? withBotInputs(rawInputs, state, botController) : rawInputs;
+          const { nextState, toPlay } = gameLoop.tick(state, inputs);
+          stateSystem.setState(nextState);
+          effector.play(toPlay);
+        }
       }
     }
 
     renderer.clear();
-    renderer.draw(stateSystem.buf, entityManager);
-    if (window.showHitboxes) drawHitboxes(ctx, stateSystem.buf, entityManager);
-    drawHUD(ctx, stateSystem.buf, renderer.width, renderer.height, botController);
+    if (phase === 'title') {
+      titleScreen.draw(ctx);
+    } else if (phase === 'select') {
+      charSelect.draw(ctx);
+    } else {
+      renderer.draw(stateSystem.buf, entityManager);
+      if (window.showHitboxes) drawHitboxes(ctx, stateSystem.buf, entityManager);
+      drawHUD(ctx, stateSystem.buf, renderer.width, renderer.height, botController);
+    }
+
     requestAnimationFrame(rafLoop);
   }
 
   requestAnimationFrame(rafLoop);
 }
 
-
 function withBotInputs(inputs, state, botController) {
-  const nextInputs = { ...inputs };
+  const next = { ...inputs };
   const botInputs = botController.makeInputs(state);
-  for (const key in botInputs) {
-    nextInputs[key] = botInputs[key];
-  }
-  return nextInputs;
+  for (const key in botInputs) next[key] = botInputs[key];
+  return next;
 }
 
 // ─── 히트박스 디버그 렌더 ────────────────────────────────────────────────────
@@ -202,6 +230,42 @@ function drawHitboxes(ctx, buf, entityManager) {
     }
   }
 
+  // ── 서브 범위 시각화 (tossed 단계) ────────────────────────────────────────
+  if (buf.phase === 'serve' && buf.serveStep === 'tossed') {
+    const ss = buf[buf.server];
+    if (ss) {
+      const ARM    = 35;           // ARM_LEN in pixels (35/800 * 800)
+      const PSH    = 80;           // P_SIZE.h in pixels
+      const facDir = buf.serverSide === 'left' ? 1 : -1;
+      const spx    = px(ss.x);
+      const footPY = py(ss.y);                  // 발 y
+      const headPY = py(ss.y + 80 / LW);        // 정수리 y
+
+      // 오버핸드 범위 (노란색): x=앞쪽 ARM_LEN, y=정수리~정수리+ARM_LEN
+      const ovX    = facDir === 1 ? spx : spx - ARM;
+      const ovTopY = headPY - ARM;   // canvas: 정수리에서 ARM_LEN 위
+      ctx.fillStyle   = 'rgba(255,220,0,0.20)';
+      ctx.strokeStyle = 'rgba(255,220,0,0.9)';
+      ctx.lineWidth   = 1.5;
+      ctx.fillRect(ovX, ovTopY, ARM, ARM);
+      ctx.strokeRect(ovX, ovTopY, ARM, ARM);
+      ctx.fillStyle = 'rgba(255,220,0,0.9)';
+      ctx.font = 'bold 11px monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+      ctx.fillText('오버핸드', ovX + ARM / 2, ovTopY - 2);
+
+      // 언더핸드 범위 (하늘색): x=앞쪽 ARM_LEN, y=정수리~발 (직사각형)
+      const unX = facDir === 1 ? spx : spx - ARM;
+      ctx.fillStyle   = 'rgba(80,200,255,0.20)';
+      ctx.strokeStyle = 'rgba(80,200,255,0.9)';
+      ctx.lineWidth   = 1.5;
+      ctx.fillRect(unX, headPY, ARM, footPY - headPY);
+      ctx.strokeRect(unX, headPY, ARM, footPY - headPY);
+      ctx.fillStyle = 'rgba(80,200,255,0.9)';
+      ctx.font = 'bold 11px monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+      ctx.fillText('언더핸드', unX + ARM / 2, footPY - 2);
+    }
+  }
+
   ctx.restore();
 }
 
@@ -224,8 +288,24 @@ function drawHUD(ctx, state, W, H, botController) {
   ctx.fillStyle    = 'rgba(255,255,255,0.65)';
   ctx.fillText('1P: ←→이동 / ↑점프 / ↓리시브 / Shift스파이크 / ←←or→→다이빙 / ↑↑블로킹 / ↓↓스킬  |  2P: WASD / ShiftLeft', 8, H - 18);
 
-  ctx.textAlign = 'right';
-  ctx.fillText(`2P AI: ${botController.getCurrentTypeLabel()}`, W - 8, H - 18);
+  if (botController) {
+    ctx.textAlign = 'right';
+    ctx.fillText(`2P AI: ${botController.getCurrentTypeLabel()}`, W - 8, H - 18);
+  }
+
+  // 서브 오버레이
+  if (state.phase === 'serve') {
+    const who  = state.server === 'player1' ? '1P' : '2P';
+    const key  = state.server === 'player1' ? 'ShiftRight' : 'ShiftLeft';
+    const step = state.serveStep === 'ready' ? `${key}: 토스` : `${key}: 서브`;
+    ctx.fillStyle    = 'rgba(0,0,0,0.28)';
+    ctx.fillRect(W / 2 - 160, H / 2 - 30, 320, 54);
+    ctx.fillStyle    = '#fff';
+    ctx.font         = 'bold 20px monospace';
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(`${who} 서브 — ${step}`, W / 2, H / 2);
+  }
 
   // 득점 오버레이
   if (state.phase === 'point') {

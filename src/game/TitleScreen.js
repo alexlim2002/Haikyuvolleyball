@@ -1,0 +1,102 @@
+const LW = 800,
+  LH = 450;
+
+export class TitleScreen {
+  #selectedIdx = 0;
+  #prevUp = false;
+  #prevDown = false;
+  #prevAction1 = false;
+  #prevAction2 = false;
+  #onSelect;
+  #assets;
+
+  // onSelect(mode) — mode: 'single' | 'multi'
+  // actionAlreadyHeld: 진입 시점에 ACTION 키가 눌려있으면 true — 즉시 선택 방지
+  constructor(onSelect, actionAlreadyHeld = false, assets = null) {
+    this.#onSelect = onSelect;
+    this.#prevAction1 = actionAlreadyHeld;
+    this.#prevAction2 = actionAlreadyHeld;
+    this.#assets = assets;
+  }
+
+  tick(inputs) {
+    const up = !!(inputs["1P_UP"] || inputs["2P_UP"]);
+    const down = !!(inputs["1P_DOWN"] || inputs["2P_DOWN"]);
+    const confirm = !!(inputs["1P_CONFIRM"] || inputs["2P_CONFIRM"]);
+
+    if (up && !this.#prevUp)
+      this.#selectedIdx = (this.#selectedIdx - 1 + 2) % 2;
+    if (down && !this.#prevDown)
+      this.#selectedIdx = (this.#selectedIdx + 1) % 2;
+
+    if (confirm && !this.#prevAction1 && !this.#prevAction2) {
+      this.#onSelect(this.#selectedIdx === 0 ? "single" : "multi");
+    }
+
+    this.#prevUp = up;
+    this.#prevDown = down;
+    this.#prevAction1 = !!inputs["1P_CONFIRM"];
+    this.#prevAction2 = !!inputs["2P_CONFIRM"];
+  }
+
+  static ITEM_Y = [304, 340];
+
+  handleClick(lx, ly) {
+    for (let i = 0; i < TitleScreen.ITEM_Y.length; i++) {
+      const cy = TitleScreen.ITEM_Y[i];
+      if (ly >= cy - 10 && ly <= cy + 30) {
+        if (this.#selectedIdx === i) {
+          this.#onSelect(i === 0 ? "single" : "multi");
+        } else {
+          this.#selectedIdx = i;
+        }
+        return;
+      }
+    }
+  }
+
+  drawClickBoxes(ctx) {
+    for (let i = 0; i < TitleScreen.ITEM_Y.length; i++) {
+      const cy = TitleScreen.ITEM_Y[i];
+      ctx.strokeStyle = 'rgba(0,255,200,0.9)';
+      ctx.lineWidth = 1.5;
+      ctx.fillStyle = 'rgba(0,255,200,0.08)';
+      ctx.beginPath();
+      ctx.roundRect(LW / 2 - 160, cy - 10, 320, 40, 6);
+      ctx.fill(); ctx.stroke();
+      ctx.fillStyle = 'rgba(0,255,200,0.8)';
+      ctx.font = '9px monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.fillText(`menu[${i}]`, LW / 2, cy - 18);
+    }
+  }
+
+  draw(ctx) {
+    if (this.#assets?.start) {
+      ctx.drawImage(this.#assets.start, 0, 0, LW, LH);
+    } else {
+      ctx.fillStyle = "#1a2a3a";
+      ctx.fillRect(0, 0, LW, LH);
+    }
+
+    // 조작 안내 (둘이서 같이 버튼 아래)
+    ctx.fillStyle = "rgba(0,0,0,0.45)";
+    ctx.beginPath();
+    ctx.roundRect(LW / 2 - 200, 374, 400, 22, 5);
+    ctx.fill();
+    ctx.fillStyle = "rgba(255,255,255,0.92)";
+    ctx.font = "bold 12px monospace";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "top";
+    ctx.fillText("↑↓ / 클릭 / Space·Enter 확인  /  Tab — 조작법", LW / 2, 378);
+
+    // 선택 테두리
+    const cy = TitleScreen.ITEM_Y[this.#selectedIdx];
+    ctx.strokeStyle = "#00e8ff";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(LW / 2 - 160, cy - 10, 320, 40, 6);
+    ctx.stroke();
+  }
+}

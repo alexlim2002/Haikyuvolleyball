@@ -111,8 +111,11 @@ export class GameLoop {
       this.#applyAction(es, entity, transition);
     }
 
-    // 4. 중력
-    const atApex = entity.physics.apexThreshold && Math.abs(es.vy) < entity.physics.apexThreshold;
+    // 4. 중력 (변곡점 감속은 뷰포트 높이 내에서만)
+    const VIEWPORT_H = 0.5625;
+    const atApex = entity.physics.apexThreshold &&
+                   Math.abs(es.vy) < entity.physics.apexThreshold &&
+                   es.y < VIEWPORT_H;
     es.vy = applyGravity(es.vy, entity.physics.gravity * (atApex ? 0.4 : 1));
 
     // 5. 이동
@@ -179,9 +182,7 @@ export class GameLoop {
         h.onBallHitFloor?.(state, bs.x < map.w / 2 ? 'left' : 'right');
         continue;
       }
-      if (hit.side === 'top') continue; // 상단 통과
-
-      // 좌/우 벽 반사
+      // 좌/우/상단 벽 반사
       const { newVelA } = resolveCollision(
         { x: bs.vx, y: bs.vy }, ballEntity.physics.restitution,
         { x: 0, y: 0 }, 0,
@@ -225,6 +226,7 @@ export class GameLoop {
       if (entity.role !== 'player') continue;
       const ps = state[entity.id];
       if (!ps) continue;
+      if (ps.noBallCollide) continue;  // 서브 중 서버는 공과 충돌하지 않음
 
       const actionDef = entity.actions?.[ps.actionType];
       if (!actionDef?.getHitbox) continue;

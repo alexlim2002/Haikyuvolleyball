@@ -4,7 +4,6 @@ const BOT_LABELS = {
   aggressive: "공격형",
   defensive: "수비형",
   rally: "랠리형",
-  // Backward-compatible labels for older callers/docs.
   attack: "공격형",
   defense: "수비형",
 };
@@ -22,44 +21,57 @@ const DEFAULTS = {
   playerHeight: 80 / UNIT,
   netWidth: 10 / UNIT,
   netHeight: 150 / UNIT,
+  armLength: 35 / UNIT,
   playerSpeed: 5 / UNIT,
-  moveMargin: 10 / UNIT,
-  reactionDelayTicks: 3,
-  maxPredictionTicks: 96,
+  moveMargin: 9 / UNIT,
+  reactionDelayTicks: 2,
+  maxPredictionTicks: 132,
   profile: null,
+  forcedType: null,
+  serveTypes: ["OVERHAND", "UNDERHAND"],
 };
 
 const BOT_TUNING = {
-  predictionTicks: 96,
-  reactionDelayTicks: 3,
-  landingLookaheadTicks: 72,
-  interceptLookaheadTicks: 30,
-  moveDeadZone: 10 / UNIT,
+  predictionTicks: 132,
+  reactionDelayTicks: 2,
+  moveDeadZone: 9 / UNIT,
   wallRestitution: 0.9,
   netRestitution: 0.65,
-  lowBallY: 0.145,
+  lowBallY: 0.15,
   veryLowBallY: 0.095,
   attackMinY: 0.17,
-  attackMaxY: 0.38,
+  attackMaxY: 0.4,
   highBallY: 0.22,
-  receiveRangeX: 58 / UNIT,
-  receiveRangeY: 95 / UNIT,
-  diveRangeX: 150 / UNIT,
-  diveCommitRangeX: 70 / UNIT,
-  spikeRangeX: 74 / UNIT,
-  spikeRangeY: 150 / UNIT,
-  blockNetRange: 105 / UNIT,
-  blockXRange: 78 / UNIT,
-  jumpLeadTicks: 14,
-  blockLeadTicks: 18,
-  diveLeadTicks: 26,
+  fastBallSpeed: 9 / UNIT,
+  veryFastBallSpeed: 13 / UNIT,
+  receiveRangeX: 64 / UNIT,
+  receiveRangeY: 110 / UNIT,
+  fastReceiveRangeBonus: 28 / UNIT,
+  diveRangeX: 178 / UNIT,
+  fastDiveRangeBonus: 42 / UNIT,
+  diveCommitRangeX: 84 / UNIT,
+  spikeRangeX: 78 / UNIT,
+  spikeRangeY: 160 / UNIT,
+  blockNetRange: 110 / UNIT,
+  blockXRange: 82 / UNIT,
+  jumpLeadTicks: 16,
+  fastJumpLeadBonus: 5,
+  blockLeadTicks: 20,
+  diveLeadTicks: 30,
   noWallStickMargin: 18 / UNIT,
+  serveJumpMinY: 0.145,
+  serveJumpLeadY: 18 / UNIT,
+  serveHitBufferY: 8 / UNIT,
+  serveActionCooldown: 8,
+  serveJumpCooldown: 18,
   actionCooldowns: {
-    receive: 8,
-    dive: 34,
-    jump: 13,
-    spike: 16,
-    block: 18,
+    receive: 7,
+    dive: 30,
+    jump: 12,
+    spike: 15,
+    block: 17,
+    serveAction: 8,
+    serveJump: 18,
   },
 };
 
@@ -68,62 +80,63 @@ const AI_PROFILES = {
     label: BOT_LABELS.aggressive,
     homeRatio: 0.46,
     opponentHomeRatio: 0.40,
-    attackBias: 0.34,
-    predictionBlend: 0.84,
-    receiveMultiplier: 0.94,
-    diveMultiplier: 0.88,
+    attackBias: 0.36,
+    predictionBlend: 0.88,
+    receiveMultiplier: 0.98,
+    diveMultiplier: 0.95,
     spikeMultiplier: 1.24,
-    blockMultiplier: 1.20,
-    jumpLeadBonus: 4,
+    blockMultiplier: 1.18,
+    jumpLeadBonus: 5,
     blockLeadBonus: 5,
-    diveLeadBonus: -3,
+    diveLeadBonus: -1,
     netPatrol: 0.092,
     actionCooldownScale: 0.82,
+    preferJumpServe: true,
   },
   defensive: {
     label: BOT_LABELS.defensive,
     homeRatio: 0.68,
     opponentHomeRatio: 0.72,
     attackBias: 0.12,
-    predictionBlend: 0.94,
-    receiveMultiplier: 1.22,
-    diveMultiplier: 1.18,
-    spikeMultiplier: 0.82,
+    predictionBlend: 0.96,
+    receiveMultiplier: 1.28,
+    diveMultiplier: 1.22,
+    spikeMultiplier: 0.84,
     blockMultiplier: 0.92,
-    jumpLeadBonus: 1,
-    blockLeadBonus: -2,
-    diveLeadBonus: 5,
+    jumpLeadBonus: 2,
+    blockLeadBonus: -1,
+    diveLeadBonus: 6,
     netPatrol: 0.135,
-    actionCooldownScale: 0.92,
+    actionCooldownScale: 0.9,
+    preferJumpServe: true,
   },
   rally: {
     label: BOT_LABELS.rally,
     homeRatio: 0.58,
     opponentHomeRatio: 0.58,
     attackBias: 0.20,
-    predictionBlend: 0.88,
-    receiveMultiplier: 1.08,
-    diveMultiplier: 1.00,
+    predictionBlend: 0.91,
+    receiveMultiplier: 1.12,
+    diveMultiplier: 1.06,
     spikeMultiplier: 1.00,
     blockMultiplier: 1.00,
-    jumpLeadBonus: 2,
-    blockLeadBonus: 0,
-    diveLeadBonus: 1,
+    jumpLeadBonus: 3,
+    blockLeadBonus: 1,
+    diveLeadBonus: 2,
     netPatrol: 0.115,
-    actionCooldownScale: 1.0,
+    actionCooldownScale: 0.96,
+    preferJumpServe: true,
   },
 };
 
 /**
  * 최신 GameLoop/InputSystem 흐름에 맞춘 규칙 기반 AI 컨트롤러.
- *
  * AI는 state를 직접 수정하지 않고, 사람 입력과 같은 형태의 입력 스냅샷 조각만 만든다.
- * sample.js는 매 tick마다 실제 키보드 입력 위에 이 값을 덮어써서 GameLoop.tick(state, inputs)에 전달한다.
  */
 export function createBotController(config = {}) {
   const cfg = { ...DEFAULTS, ...config };
 
-  let currentProfileId = normalizeProfileId(cfg.profile) ?? chooseRandomProfileId();
+  let currentProfileId = normalizeProfileId(cfg.profile ?? cfg.forcedType) ?? chooseRandomProfileId();
   let currentRallyKey = "";
   const cooldowns = makeCooldownState();
   let lastDebugInfo = makeInitialDebugInfo(currentProfileId);
@@ -132,7 +145,7 @@ export function createBotController(config = {}) {
     if (currentRallyKey === rallyKey) return;
 
     currentRallyKey = rallyKey;
-    currentProfileId = normalizeProfileId(cfg.profile) ?? chooseRandomProfileId();
+    currentProfileId = normalizeProfileId(cfg.profile ?? cfg.forcedType) ?? chooseRandomProfileId();
     resetCooldowns(cooldowns);
     lastDebugInfo = makeInitialDebugInfo(currentProfileId);
   }
@@ -149,25 +162,19 @@ export function createBotController(config = {}) {
     }
 
     context.cooldowns = cooldowns;
+
+    if (isMyServe(state, cfg)) {
+      const selectedAction = playServe(inputs, context);
+      lastDebugInfo = buildDebugInfo(currentProfileId, getCurrentTypeLabel(), null, null, selectedAction, cooldowns);
+      return inputs;
+    }
+
     const prediction = predictBallLanding(state, context.playerSide, context);
     const targetInfo = getTargetX(context, prediction);
     moveToward(inputs, context, targetInfo.targetX);
     const selectedAction = chooseAction(inputs, context, prediction);
 
-    lastDebugInfo = {
-      profile: currentProfileId,
-      profileLabel: getCurrentTypeLabel(),
-      targetX: roundDebug(targetInfo.targetX),
-      targetMode: targetInfo.mode,
-      predictedLandingX: roundDebug(prediction.landingX),
-      predictedLandingTick: prediction.landingTick,
-      interceptX: roundDebug(prediction.intercept?.x),
-      interceptY: roundDebug(prediction.intercept?.y),
-      interceptTick: prediction.intercept?.tick ?? null,
-      selectedAction,
-      cooldowns: { ...cooldowns },
-    };
-
+    lastDebugInfo = buildDebugInfo(currentProfileId, getCurrentTypeLabel(), targetInfo, prediction, selectedAction, cooldowns);
     return inputs;
   }
 
@@ -193,6 +200,75 @@ export function createBotController(config = {}) {
     getCurrentTypeId,
     getDebugInfo,
   };
+}
+
+function playServe(inputs, context) {
+  const { state, player, ball, playerSide, cfg, profile } = context;
+  const actionKey = inputName(playerSide, "ACTION");
+  const upKey = inputName(playerSide, "UP");
+
+  if (state.serveStep === "ready") {
+    if (canUseAction("serveAction", context, 1)) {
+      inputs[actionKey] = true;
+      setCooldown("serveAction", context, 1);
+      return "SERVE_TOSS";
+    }
+    return null;
+  }
+
+  if (state.serveStep !== "tossed") return null;
+
+  const serveTypes = cfg.serveTypes ?? player.serveTypes ?? ["OVERHAND", "UNDERHAND"];
+  const canJumpServe = serveTypes.includes("JUMP");
+  const canOverhand = serveTypes.includes("OVERHAND");
+  const canUnderhand = serveTypes.includes("UNDERHAND");
+  const headY = player.y + cfg.playerHeight;
+  const groundHeadY = cfg.playerHeight;
+  const armLen = cfg.armLength;
+  const facingX = playerSide === "left" ? 1 : -1;
+  const dx = (ball.x - player.x) * facingX;
+  const inFrontReach = dx > 0 && dx <= armLen * 1.2;
+  if (!inFrontReach) return null;
+
+  const preferJump = canJumpServe && (profile.preferJumpServe || !canOverhand || ball.y > groundHeadY + armLen * 0.72);
+  const jumpReadyY = groundHeadY + armLen * (profile.preferJumpServe ? 0.26 : 0.45);
+  const jumpServeHitWindow = ball.y >= headY - BOT_TUNING.serveHitBufferY && ball.y <= headY + armLen + BOT_TUNING.serveHitBufferY;
+
+  if (preferJump) {
+    if (player.onGround && ball.y >= jumpReadyY && ball.vy >= -BOT_TUNING.serveJumpLeadY && canUseAction("serveJump", context, 1)) {
+      inputs[upKey] = true;
+      setCooldown("serveJump", context, 1);
+      return "SERVE_JUMP";
+    }
+
+    if (!player.onGround && jumpServeHitWindow && canUseAction("serveAction", context, 1)) {
+      inputs[actionKey] = true;
+      setCooldown("serveAction", context, 1);
+      return "JUMP_SERVE_HIT";
+    }
+
+    // If jump serve timing is missed and the ball is falling out of range, fall back
+    // to a legal overhand/underhand serve instead of faulting.
+    if (ball.vy < 0 && canOverhand && ball.y >= groundHeadY && ball.y <= groundHeadY + armLen && canUseAction("serveAction", context, 1)) {
+      inputs[actionKey] = true;
+      setCooldown("serveAction", context, 1);
+      return "OVERHAND_FALLBACK_SERVE";
+    }
+  }
+
+  if (canOverhand && ball.y >= groundHeadY && ball.y <= groundHeadY + armLen && canUseAction("serveAction", context, 1)) {
+    inputs[actionKey] = true;
+    setCooldown("serveAction", context, 1);
+    return "OVERHAND_SERVE";
+  }
+
+  if (canUnderhand && ball.y >= player.y + 0.015 && ball.y < groundHeadY && canUseAction("serveAction", context, 1)) {
+    inputs[actionKey] = true;
+    setCooldown("serveAction", context, 1);
+    return "UNDERHAND_SERVE";
+  }
+
+  return null;
 }
 
 function readContext(state, cfg, profileId) {
@@ -236,21 +312,25 @@ export function predictBallLanding(state, botSide = "right", options = {}) {
 
   if (!ball) {
     const fallbackX = getDefensiveHomeX({ ...options, playerSide: botSide, sideMinX: bounds.min, sideMaxX: bounds.max });
-    return makePrediction(fallbackX, null, null, [], false);
+    return makePrediction(fallbackX, null, null, [], false, 0);
   }
 
+  const speed = ballSpeed(ball);
+  const extraTicks = speed >= BOT_TUNING.veryFastBallSpeed ? 48 : speed >= BOT_TUNING.fastBallSpeed ? 24 : 0;
   const trajectory = simulateBallTrajectory(ball, {
     ...cfg,
     netX,
-    ticks: cfg.maxPredictionTicks ?? BOT_TUNING.predictionTicks,
+    ticks: (cfg.maxPredictionTicks ?? BOT_TUNING.predictionTicks) + extraTicks,
   });
 
-  let landing = trajectory.find(p => p.y - cfg.ballRadius <= 0) ?? trajectory[trajectory.length - 1] ?? { x: ball.x, y: ball.y, tick: 0 };
-  const myCourtLanding = trajectory.find(p => isInMyCourt(p.x, botSide, netX) && p.y < BOT_TUNING.lowBallY && p.vy < 0);
-  const intercept = findBestIntercept(trajectory, botSide, netX, options.player, cfg);
-  const landingX = clampToCourt((myCourtLanding ?? landing).x, botSide, { netX, cfg, sideMinX: bounds.min, sideMaxX: bounds.max });
+  const landing = trajectory.find(p => p.y - cfg.ballRadius <= 0) ?? trajectory[trajectory.length - 1] ?? { x: ball.x, y: ball.y, tick: 0, vx: ball.vx, vy: ball.vy };
+  const firstMyCourtPoint = trajectory.find(p => isInMyCourt(p.x, botSide, netX));
+  const myCourtLowPoint = trajectory.find(p => isInMyCourt(p.x, botSide, netX) && p.y < dynamicLowBallY(speed) && p.vy < 0);
+  const intercept = findBestIntercept(trajectory, botSide, netX, options.player, cfg, speed);
+  const selected = myCourtLowPoint ?? firstMyCourtPoint ?? landing;
+  const landingX = clampToCourt(selected.x, botSide, { netX, cfg, sideMinX: bounds.min, sideMaxX: bounds.max });
 
-  return makePrediction(landingX, (myCourtLanding ?? landing).tick, intercept, trajectory, !!myCourtLanding);
+  return makePrediction(landingX, selected.tick, intercept, trajectory, !!firstMyCourtPoint, speed);
 }
 
 export function simulateBallTrajectory(ball, options = {}) {
@@ -286,7 +366,7 @@ export function simulateBallTrajectory(ball, options = {}) {
       vx *= -BOT_TUNING.netRestitution;
     }
 
-    points.push({ tick, x, y, vx, vy });
+    points.push({ tick, x, y, vx, vy, speed: Math.hypot(vx, vy) });
     if (y - cfg.ballRadius <= 0) break;
   }
 
@@ -307,8 +387,9 @@ function getTargetX(context, prediction) {
   if (comingToMe || prediction.willEnterMyCourt) {
     const homeX = getDefensiveHomeX(context);
     const predicted = prediction.intercept?.x ?? prediction.landingX;
-    const targetX = predicted * profile.predictionBlend + homeX * (1 - profile.predictionBlend);
-    return { targetX: clampToCourt(targetX, playerSide, context), mode: "intercept" };
+    const speedBias = prediction.speed >= BOT_TUNING.fastBallSpeed ? 1 : 0;
+    const blend = clamp(profile.predictionBlend + speedBias * 0.08, 0, 1);
+    return { targetX: clampToCourt(predicted * blend + homeX * (1 - blend), playerSide, context), mode: speedBias ? "fast-intercept" : "intercept" };
   }
 
   if (ball.y > BOT_TUNING.attackMinY && Math.abs(ball.x - netX) < 0.20) {
@@ -358,26 +439,35 @@ function chooseAction(inputs, context, prediction) {
 
 function shouldReceive(context, prediction) {
   const { player, ball, playerSide, netX, profile } = context;
-  if (!player.onGround || !isInMyCourt(ball.x, playerSide, netX)) return false;
-  const intercept = prediction.intercept;
-  const target = intercept ?? { x: ball.x, y: ball.y, tick: 0, vy: ball.vy };
+  if (!player.onGround) return false;
+  const incoming = isInMyCourt(ball.x, playerSide, netX) || prediction.willEnterMyCourt;
+  if (!incoming) return false;
+
+  const speed = prediction.speed;
+  const target = prediction.intercept ?? { x: prediction.landingX, y: ball.y, tick: prediction.landingTick ?? 99, vy: ball.vy };
   const dx = Math.abs(target.x - player.x);
   const dy = Math.abs(target.y - (player.y + 0.035));
-  const receiveRangeX = BOT_TUNING.receiveRangeX * profile.receiveMultiplier;
+  const speedBonus = speed >= BOT_TUNING.fastBallSpeed ? BOT_TUNING.fastReceiveRangeBonus : 0;
+  const receiveRangeX = BOT_TUNING.receiveRangeX * profile.receiveMultiplier + speedBonus;
   const receiveRangeY = BOT_TUNING.receiveRangeY * profile.receiveMultiplier;
-  const imminent = target.tick <= 16 && target.y <= BOT_TUNING.lowBallY * profile.receiveMultiplier;
-  const currentLowClose = ball.y <= BOT_TUNING.lowBallY * profile.receiveMultiplier && Math.abs(ball.x - player.x) <= receiveRangeX;
+  const imminentLimit = speed >= BOT_TUNING.fastBallSpeed ? 22 : 16;
+  const imminent = target.tick <= imminentLimit && target.y <= dynamicLowBallY(speed) * profile.receiveMultiplier;
+  const currentLowClose = ball.y <= dynamicLowBallY(speed) * profile.receiveMultiplier && Math.abs(ball.x - player.x) <= receiveRangeX;
   return (imminent && dx <= receiveRangeX && dy <= receiveRangeY && target.vy <= 0) || currentLowClose;
 }
 
 function shouldDive(context, prediction) {
   const { player, ball, playerSide, netX, profile } = context;
   if (!player.onGround || !isInMyCourt(prediction.landingX, playerSide, netX)) return false;
+  const speed = prediction.speed;
   const target = prediction.intercept ?? { x: prediction.landingX, y: ball.y, tick: prediction.landingTick ?? 99, vy: ball.vy };
+  const receiveLimit = BOT_TUNING.receiveRangeX * profile.receiveMultiplier + (speed >= BOT_TUNING.fastBallSpeed ? BOT_TUNING.fastReceiveRangeBonus * 0.6 : 0);
+  const diveLimit = BOT_TUNING.diveRangeX * profile.diveMultiplier + (speed >= BOT_TUNING.fastBallSpeed ? BOT_TUNING.fastDiveRangeBonus : 0);
   const dx = Math.abs(target.x - player.x);
-  const tooFarForReceive = dx > BOT_TUNING.receiveRangeX * profile.receiveMultiplier;
-  const reachableByDive = dx <= BOT_TUNING.diveRangeX * profile.diveMultiplier;
-  const soonLow = target.tick <= BOT_TUNING.diveLeadTicks + profile.diveLeadBonus && target.y <= BOT_TUNING.lowBallY * 1.2;
+  const tooFarForReceive = dx > receiveLimit;
+  const reachableByDive = dx <= diveLimit;
+  const lead = BOT_TUNING.diveLeadTicks + profile.diveLeadBonus + (speed >= BOT_TUNING.fastBallSpeed ? 8 : 0);
+  const soonLow = target.tick <= lead && target.y <= dynamicLowBallY(speed) * 1.25;
   const currentEmergency = ball.y <= BOT_TUNING.veryLowBallY && Math.abs(ball.x - player.x) <= BOT_TUNING.diveCommitRangeX * profile.diveMultiplier;
   return (tooFarForReceive && reachableByDive && soonLow && target.vy <= 0) || currentEmergency;
 }
@@ -410,7 +500,8 @@ function shouldJump(context, prediction) {
   if (!player.onGround) return false;
   const intercept = prediction.intercept;
   const closeX = Math.abs((intercept?.x ?? ball.x) - player.x) < BOT_TUNING.spikeRangeX * 1.15;
-  const leadTicks = BOT_TUNING.jumpLeadTicks + profile.jumpLeadBonus;
+  const speedBonus = prediction.speed >= BOT_TUNING.fastBallSpeed ? BOT_TUNING.fastJumpLeadBonus : 0;
+  const leadTicks = BOT_TUNING.jumpLeadTicks + profile.jumpLeadBonus + speedBonus;
   const highEnough = (intercept?.y ?? ball.y) > BOT_TUNING.attackMinY;
   const coming = isInMyCourt(ball.x, playerSide, netX) || prediction.willEnterMyCourt || ballMovingTowardSide(ball, playerSide);
   return coming && closeX && highEnough && (intercept?.tick ?? 0) <= leadTicks;
@@ -420,16 +511,13 @@ function canUseAction(actionName, context, urgency = 0) {
   const cooldown = context.cooldowns?.[actionName] ?? 0;
   if (cooldown <= 0) return true;
   if (urgency < 0.85) return false;
-
-  // Critical moments may override short residual cooldowns. This avoids the bot
-  // watching an easy ball drop while a previous input cooldown has 1~3 ticks left.
   const maxOverrideCooldown = actionName === "dive" ? 5 : 3;
   return cooldown <= maxOverrideCooldown;
 }
 
 function setCooldown(actionName, context, urgency = 0) {
   const base = BOT_TUNING.actionCooldowns[actionName] ?? 12;
-  const scale = context.profile.actionCooldownScale ?? 1;
+  const scale = context.profile?.actionCooldownScale ?? 1;
   const urgentScale = urgency > 0.85 ? 0.55 : 1;
   context.cooldowns[actionName] = Math.max(1, Math.round(base * scale * urgentScale));
 }
@@ -437,23 +525,26 @@ function setCooldown(actionName, context, urgency = 0) {
 function getUrgency(context, prediction) {
   const tick = prediction.intercept?.tick ?? prediction.landingTick ?? 99;
   const height = prediction.intercept?.y ?? context.ball.y;
-  const lowUrgency = height <= BOT_TUNING.veryLowBallY ? 0.45 : height <= BOT_TUNING.lowBallY ? 0.25 : 0;
+  const speed = prediction.speed;
+  const lowUrgency = height <= BOT_TUNING.veryLowBallY ? 0.45 : height <= dynamicLowBallY(speed) ? 0.25 : 0;
   const timeUrgency = tick <= 8 ? 0.55 : tick <= 16 ? 0.35 : tick <= 28 ? 0.15 : 0;
-  return Math.min(1, lowUrgency + timeUrgency);
+  const speedUrgency = speed >= BOT_TUNING.veryFastBallSpeed ? 0.25 : speed >= BOT_TUNING.fastBallSpeed ? 0.15 : 0;
+  return Math.min(1, lowUrgency + timeUrgency + speedUrgency);
 }
 
-function findBestIntercept(trajectory, botSide, netX, player, cfg) {
+function findBestIntercept(trajectory, botSide, netX, player, cfg, speed = 0) {
   if (!player) return null;
   const startX = finiteNumber(player.x, cfg.mapWidth / 2);
-  const speed = cfg.playerSpeed;
+  const playerSpeed = cfg.playerSpeed;
+  const speedRangeBonus = speed >= BOT_TUNING.fastBallSpeed ? BOT_TUNING.fastReceiveRangeBonus : 0;
 
   for (const point of trajectory) {
     if (point.tick < cfg.reactionDelayTicks) continue;
     if (!isInMyCourt(point.x, botSide, netX)) continue;
-    if (point.y > BOT_TUNING.attackMaxY) continue;
+    if (point.y > BOT_TUNING.attackMaxY + (speed >= BOT_TUNING.fastBallSpeed ? 0.08 : 0)) continue;
 
     const travelTicks = Math.max(0, point.tick - cfg.reactionDelayTicks);
-    const reachableX = Math.abs(point.x - startX) <= speed * travelTicks + BOT_TUNING.receiveRangeX;
+    const reachableX = Math.abs(point.x - startX) <= playerSpeed * travelTicks + BOT_TUNING.receiveRangeX + speedRangeBonus;
     if (reachableX) return point;
   }
 
@@ -461,7 +552,7 @@ function findBestIntercept(trajectory, botSide, netX, player, cfg) {
 }
 
 function getDefensiveHomeX(context, useOpponentAware = false) {
-  const { playerSide, sideMinX, sideMaxX, profile, ball, netX } = context;
+  const { playerSide, sideMinX, sideMaxX, profile = AI_PROFILES.rally, ball, netX } = context;
   const ratio = useOpponentAware && ball && !isInMyCourt(ball.x, playerSide, netX)
     ? profile.opponentHomeRatio
     : profile.homeRatio;
@@ -522,6 +613,10 @@ function getCourtBounds(playerSide, netX, cfg) {
   return { min: netX + halfNet + halfPlayer, max: cfg.mapWidth - halfPlayer };
 }
 
+function isMyServe(state, cfg) {
+  return state?.phase === "serve" && state?.server === cfg.playerId;
+}
+
 function isOpponentLikelyAttacking(context) {
   const { opponent, ball, opponentSide, netX } = context;
   if (!opponent) return false;
@@ -558,7 +653,7 @@ function inputName(playerSide, action) {
 function makeRallyKey(state) {
   const score = state?.score ?? { p1: 0, p2: 0 };
   const sets = state?.sets ?? { p1: 0, p2: 0 };
-  return `${state?.phase ?? "rally"}:${sets.p1}-${sets.p2}:${score.p1}-${score.p2}`;
+  return `${state?.phase ?? "rally"}:${state?.serveStep ?? "none"}:${state?.server ?? "none"}:${sets.p1}-${sets.p2}:${score.p1}-${score.p2}`;
 }
 
 function chooseRandomProfileId() {
@@ -573,7 +668,7 @@ function normalizeProfileId(profileId) {
 }
 
 function makeCooldownState() {
-  return { receive: 0, dive: 0, jump: 0, spike: 0, block: 0 };
+  return { receive: 0, dive: 0, jump: 0, spike: 0, block: 0, serveAction: 0, serveJump: 0 };
 }
 
 function resetCooldowns(cooldowns) {
@@ -586,14 +681,8 @@ function countDownCooldowns(cooldowns) {
   }
 }
 
-function makePrediction(landingX, landingTick, intercept, trajectory, willEnterMyCourt) {
-  return {
-    landingX,
-    landingTick,
-    intercept,
-    trajectory,
-    willEnterMyCourt,
-  };
+function makePrediction(landingX, landingTick, intercept, trajectory, willEnterMyCourt, speed) {
+  return { landingX, landingTick, intercept, trajectory, willEnterMyCourt, speed };
 }
 
 function makeInitialDebugInfo(profile) {
@@ -610,6 +699,33 @@ function makeInitialDebugInfo(profile) {
     selectedAction: null,
     cooldowns: makeCooldownState(),
   };
+}
+
+function buildDebugInfo(profile, profileLabel, targetInfo, prediction, selectedAction, cooldowns) {
+  return {
+    profile,
+    profileLabel,
+    targetX: roundDebug(targetInfo?.targetX),
+    targetMode: targetInfo?.mode ?? null,
+    predictedLandingX: roundDebug(prediction?.landingX),
+    predictedLandingTick: prediction?.landingTick ?? null,
+    interceptX: roundDebug(prediction?.intercept?.x),
+    interceptY: roundDebug(prediction?.intercept?.y),
+    interceptTick: prediction?.intercept?.tick ?? null,
+    ballSpeed: roundDebug(prediction?.speed),
+    selectedAction,
+    cooldowns: { ...cooldowns },
+  };
+}
+
+function ballSpeed(ball) {
+  return Math.hypot(finiteNumber(ball?.vx, 0), finiteNumber(ball?.vy, 0));
+}
+
+function dynamicLowBallY(speed) {
+  if (speed >= BOT_TUNING.veryFastBallSpeed) return BOT_TUNING.lowBallY + 0.06;
+  if (speed >= BOT_TUNING.fastBallSpeed) return BOT_TUNING.lowBallY + 0.035;
+  return BOT_TUNING.lowBallY;
 }
 
 function finiteNumber(value, fallback) {

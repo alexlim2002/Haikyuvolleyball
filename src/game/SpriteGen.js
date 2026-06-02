@@ -3,6 +3,8 @@
  * generateAssets() → AssetStore와 동일한 구조의 assets 객체 반환
  */
 
+import { CHARACTERS } from './Characters.js';
+
 async function bmp(canvas) {
   return createImageBitmap(canvas);
 }
@@ -44,27 +46,6 @@ async function genCourt() {
   ctx.setLineDash([8, 6]);
   ctx.beginPath(); ctx.moveTo(W / 2, FY + 2); ctx.lineTo(W / 2, H); ctx.stroke();
   ctx.setLineDash([]);
-
-  return bmp(c);
-}
-
-// ─── 네트 ─────────────────────────────────────────────────────────────────────
-async function genNet() {
-  const W = 10, H = 150;
-  const c = new OffscreenCanvas(W, H);
-  const ctx = c.getContext('2d');
-
-  ctx.fillStyle = '#555';
-  ctx.fillRect(0, 0, W, H);
-
-  ctx.strokeStyle = '#aaa';
-  ctx.lineWidth = 0.5;
-  for (let y = 5; y < H; y += 5) {
-    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
-  }
-
-  ctx.fillStyle = '#eee';
-  ctx.fillRect(0, 0, W, 5);
 
   return bmp(c);
 }
@@ -253,27 +234,78 @@ function drawDive(ctx, cx, i) {
 }
 
 // ─── PNG 스프라이트 시트 → 1D 프레임 배열 ────────────────────────────────────
-async function loadImageFrames(src, cols) {
-  const blob = await fetch(src).then(r => r.blob());
-  const img  = await createImageBitmap(blob);
-  const size = Math.floor(img.width / cols);
-  const rows = Math.floor(img.height / size);
-  const out  = [];
-  for (let row = 0; row < rows; row++) {
-    for (let col = 0; col < cols; col++) {
-      out.push({ image: img, sx: col * size, sy: row * size, sw: size, sh: size });
+async function loadImageFrames(src, frameSize) {
+  try {
+    const res = await fetch(src);
+    if (!res.ok) { console.warn(`[SpriteGen] ${src} — HTTP ${res.status}`); return []; }
+    const img  = await createImageBitmap(await res.blob());
+    const cols = Math.floor(img.width  / frameSize);
+    const rows = Math.floor(img.height / frameSize);
+    const out  = [];
+    for (let row = 0; row < rows; row++) {
+      for (let col = 0; col < cols; col++) {
+        out.push({ image: img, sx: col * frameSize, sy: row * frameSize, sw: frameSize, sh: frameSize });
+      }
     }
+    return out;
+  } catch (e) {
+    console.warn(`[SpriteGen] ${src} 로드 실패:`, e);
+    return [];
   }
-  return out;
+}
+
+async function loadImageBitmap(relPath) {
+  try {
+    const url = new URL(relPath, import.meta.url).href;
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    return createImageBitmap(await res.blob());
+  } catch (e) {
+    console.warn('[SpriteGen] 로드 실패:', relPath, e);
+    return null;
+  }
+}
+
+// SVG는 createImageBitmap이 디코드 못 하므로 Image 엘리먼트로 로드
+async function loadSVG(relPath) {
+  try {
+    const url = new URL(relPath, import.meta.url).href;
+    const img = new Image();
+    await new Promise((resolve, reject) => {
+      img.onload = resolve;
+      img.onerror = reject;
+      img.src = url;
+    });
+    return createImageBitmap(img);
+  } catch (e) {
+    console.warn('[SpriteGen] SVG 로드 실패:', relPath, e);
+    return null;
+  }
 }
 
 // ─── 공개 API ─────────────────────────────────────────────────────────────────
 export async function generateAssets() {
-  const [court, net, ball, player] = await Promise.all([
-    genCourt(),
-    genNet(),
+  const [bgImg, startImg, net, ball] = await Promise.all([
+    loadImageBitmap('../asset/background.png'),
+    loadImageBitmap('../asset/start.png'),
+    loadSVG('../asset/net.img.svg'),
     genBall(),
-    loadImageFrames('../asset/character/히나타쇼요.png', 8),
   ]);
-  return { court, net, ball, player };
+
+  const court = bgImg ?? await genCourt();
+  const start = startImg;
+
+  const charEntries = await Promise.all(
+    CHARACTERS.map(async char => {
+      const url    = new URL(`../asset/character/${char.file}`, import.meta.url).href;
+      const frames = await loadImageFrames(url, 127);
+      return [char.id, frames];
+    })
+  );
+
+  const assets = { court, net, ball, start };
+  for (const [id, frames] of charEntries) {
+    assets[id] = frames;
+  }
+  return assets;
 }

@@ -185,3 +185,41 @@ sh build.sh
 - 상대 플레이어의 미래 액션까지 포함한 더 정교한 궤적 예측은 아직 구현하지 않았다.
 - 네트 충돌 예측은 단순화되어 있으므로, 실제 히트박스 기반 예측으로 개선할 수 있다.
 - 점수 상황에 따른 위험 감수 전략은 추후 추가할 수 있다.
+
+## 9. 점프 서브 및 고속 공 대응 추가 튜닝
+
+### 점프 서브
+
+최신 `GameLogic`의 서브 상태(`phase: "serve"`, `serveStep: "ready" | "tossed"`, `server`, `serverSide`)를 BotController가 명시적으로 처리한다.
+
+- `serveStep: "ready"`: `ACTION`으로 토스를 시작한다.
+- `serveStep: "tossed"` + `serveTypes`에 `JUMP` 포함:
+  - 공이 충분히 떠오르면 `UP`으로 점프한다.
+  - 공중에서 공이 머리 위/팔 범위에 들어오면 `ACTION`으로 점프 서브를 친다.
+  - 점프 타이밍을 놓쳤을 때는 폴트를 줄이기 위해 가능한 경우 오버핸드 서브로 fallback한다.
+
+이전 로직은 `JUMP`와 `OVERHAND`를 모두 가진 캐릭터가 먼저 오버핸드 조건을 만족해 점프 서브를 거의 선택하지 못했다. 이제 모든 profile은 `JUMP`가 가능하면 우선 점프 서브를 시도하되, 타이밍을 놓치면 가능한 일반 서브로 fallback한다.
+
+### 고속 공 대응
+
+공 속도(`Math.hypot(vx, vy)`)를 예측과 액션 판단에 반영했다.
+
+- 빠른 공은 예측 tick을 더 길게 잡아 자기 코트 진입 지점을 놓치지 않는다.
+- 빠른 낙하 공은 낮은 공 판정 높이를 조금 올려 더 빨리 `RECEIVE`한다.
+- 빠른 공은 리시브/다이브 허용 범위와 점프 lead tick을 확장한다.
+- debug info에 `ballSpeed`를 추가해 고속 공 상황을 확인할 수 있다.
+
+추가 검증:
+
+```bash
+node --check test/ai-bot-smoke.mjs
+node test/ai-bot-smoke.mjs
+```
+
+추가 테스트 케이스:
+
+- 서브 ready 상태에서 토스 `ACTION` 생성
+- 점프 서브 가능 캐릭터가 tossed 상태에서 `UP` 생성
+- 공중 점프 서브 타이밍에서 `ACTION` 생성
+- 빠르게 낙하하는 공에 대해 더 이른 `RECEIVE` 생성
+- 최신 `GameLoop + BotController` 240tick smoke simulation
