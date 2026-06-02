@@ -87,6 +87,7 @@ const BOT_TUNING = {
     block: 12,
     serveAction: 8,
     serveJump: 18,
+    clear: 28,
   },
 };
 
@@ -438,6 +439,12 @@ function getTargetX(context, prediction) {
 function chooseAction(inputs, context, prediction) {
   const urgency = getUrgency(context, prediction);
 
+  if (shouldLowStaminaClear(context, prediction) && canUseAction("clear", context, 1)) {
+    inputs[inputName(context.playerSide, "ACTION")] = true;
+    setCooldown("clear", context, 1);
+    return "LOW_STAMINA_CLEAR";
+  }
+
   if (shouldReceive(context, prediction) && canUseAction("receive", context, urgency)) {
     inputs[inputName(context.playerSide, "DOWN")] = true;
     setCooldown("receive", context, urgency);
@@ -475,6 +482,25 @@ function chooseAction(inputs, context, prediction) {
   }
 
   return null;
+}
+
+function shouldLowStaminaClear(context, prediction) {
+  const { player, ball, playerSide, netX, profile } = context;
+  if (context.profileId !== "aggressive" || !isLowStamina(context)) return false;
+
+  const inFront = (ball.x - player.x) * getFacingTowardOpponent(playerSide) > 0;
+  if (!inFront) return false;
+
+  const spikeFreedom = profile.spikeFreedom ?? 0;
+  const dx = Math.abs(ball.x - player.x);
+  const dy = Math.abs(ball.y - (player.y + 0.10));
+  const closeEnough = dx <= BOT_TUNING.spikeRangeX * profile.spikeMultiplier + spikeFreedom * 0.06;
+  const reachableHeight = ball.y >= BOT_TUNING.veryLowBallY && ball.y <= BOT_TUNING.attackMaxY + spikeFreedom * 0.08;
+  const reachableBody = dy <= BOT_TUNING.spikeRangeY * profile.spikeMultiplier + spikeFreedom * 0.08;
+  const attackableCourt = isInMyCourt(ball.x, playerSide, netX) || Math.abs(ball.x - netX) <= 0.12 + spikeFreedom * 0.18;
+  const needsClear = shouldReceive(context, prediction) || prediction.willEnterMyCourt || isInMyCourt(ball.x, playerSide, netX);
+
+  return closeEnough && reachableHeight && reachableBody && attackableCourt && needsClear;
 }
 
 function shouldReceive(context, prediction) {
@@ -756,7 +782,7 @@ function normalizeProfileId(profileId) {
 }
 
 function makeCooldownState() {
-  return { receive: 0, dive: 0, jump: 0, spike: 0, block: 0, serveAction: 0, serveJump: 0 };
+  return { receive: 0, dive: 0, jump: 0, spike: 0, block: 0, serveAction: 0, serveJump: 0, clear: 0 };
 }
 
 function resetCooldowns(cooldowns) {
