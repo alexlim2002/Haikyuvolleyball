@@ -15,11 +15,11 @@ const LW = 800; // LOGICAL_WIDTH
 
 // 스태미나 드레인 (틱당)
 const DRAIN_MOVE = -0.03; // 이동 중 소량 회복
-const DRAIN_JUMP = 12;
-const DRAIN_SPIKE = 15;
-const DRAIN_BLOCK = 4.5;
-const DRAIN_DIVE = 24;
-const DRAIN_RECEIVE = 3;
+const DRAIN_JUMP = 8;
+const DRAIN_SPIKE = 10;
+const DRAIN_BLOCK = 3;
+const DRAIN_DIVE = 16;
+const DRAIN_RECEIVE = 2;
 const RECOVER_IDLE = 0.1; // 가만히 있을 때 틱당 회복
 const JUMP_VY = 13 / LW;
 const DIVE_VX = 18 / LW;
