@@ -65,11 +65,11 @@ const BOT_TUNING = {
   serveActionCooldown: 8,
   serveJumpCooldown: 18,
   actionCooldowns: {
-    receive: 7,
-    dive: 30,
-    jump: 12,
-    spike: 15,
-    block: 17,
+    receive: 5,
+    dive: 22,
+    jump: 10,
+    spike: 13,
+    block: 12,
     serveAction: 8,
     serveJump: 18,
   },
@@ -82,10 +82,11 @@ const AI_PROFILES = {
     opponentHomeRatio: 0.40,
     attackBias: 0.36,
     predictionBlend: 0.88,
-    receiveMultiplier: 0.98,
-    diveMultiplier: 0.95,
+    receiveMultiplier: 1.05,
+    diveMultiplier: 1.08,
     spikeMultiplier: 1.24,
-    blockMultiplier: 1.18,
+    blockMultiplier: 1.36,
+    skillFreedom: 0.18,
     jumpLeadBonus: 5,
     blockLeadBonus: 5,
     diveLeadBonus: -1,
@@ -99,10 +100,11 @@ const AI_PROFILES = {
     opponentHomeRatio: 0.72,
     attackBias: 0.12,
     predictionBlend: 0.96,
-    receiveMultiplier: 1.28,
-    diveMultiplier: 1.22,
+    receiveMultiplier: 1.42,
+    diveMultiplier: 1.38,
     spikeMultiplier: 0.84,
-    blockMultiplier: 0.92,
+    blockMultiplier: 1.08,
+    skillFreedom: 0.26,
     jumpLeadBonus: 2,
     blockLeadBonus: -1,
     diveLeadBonus: 6,
@@ -116,10 +118,11 @@ const AI_PROFILES = {
     opponentHomeRatio: 0.58,
     attackBias: 0.20,
     predictionBlend: 0.91,
-    receiveMultiplier: 1.12,
-    diveMultiplier: 1.06,
+    receiveMultiplier: 1.22,
+    diveMultiplier: 1.18,
     spikeMultiplier: 1.00,
-    blockMultiplier: 1.00,
+    blockMultiplier: 1.14,
+    skillFreedom: 0.16,
     jumpLeadBonus: 3,
     blockLeadBonus: 1,
     diveLeadBonus: 2,
@@ -448,11 +451,13 @@ function shouldReceive(context, prediction) {
   const dx = Math.abs(target.x - player.x);
   const dy = Math.abs(target.y - (player.y + 0.035));
   const speedBonus = speed >= BOT_TUNING.fastBallSpeed ? BOT_TUNING.fastReceiveRangeBonus : 0;
-  const receiveRangeX = BOT_TUNING.receiveRangeX * profile.receiveMultiplier + speedBonus;
-  const receiveRangeY = BOT_TUNING.receiveRangeY * profile.receiveMultiplier;
-  const imminentLimit = speed >= BOT_TUNING.fastBallSpeed ? 22 : 16;
-  const imminent = target.tick <= imminentLimit && target.y <= dynamicLowBallY(speed) * profile.receiveMultiplier;
-  const currentLowClose = ball.y <= dynamicLowBallY(speed) * profile.receiveMultiplier && Math.abs(ball.x - player.x) <= receiveRangeX;
+  const freedom = profile.skillFreedom ?? 0;
+  const receiveRangeX = BOT_TUNING.receiveRangeX * profile.receiveMultiplier + speedBonus + freedom * 0.05;
+  const receiveRangeY = BOT_TUNING.receiveRangeY * profile.receiveMultiplier + freedom * 0.04;
+  const imminentLimit = (speed >= BOT_TUNING.fastBallSpeed ? 22 : 16) + Math.round(freedom * 18);
+  const receiveY = dynamicLowBallY(speed) * profile.receiveMultiplier + freedom * 0.06;
+  const imminent = target.tick <= imminentLimit && target.y <= receiveY;
+  const currentLowClose = ball.y <= receiveY && Math.abs(ball.x - player.x) <= receiveRangeX;
   return (imminent && dx <= receiveRangeX && dy <= receiveRangeY && target.vy <= 0) || currentLowClose;
 }
 
@@ -461,25 +466,27 @@ function shouldDive(context, prediction) {
   if (!player.onGround || !isInMyCourt(prediction.landingX, playerSide, netX)) return false;
   const speed = prediction.speed;
   const target = prediction.intercept ?? { x: prediction.landingX, y: ball.y, tick: prediction.landingTick ?? 99, vy: ball.vy };
+  const freedom = profile.skillFreedom ?? 0;
   const receiveLimit = BOT_TUNING.receiveRangeX * profile.receiveMultiplier + (speed >= BOT_TUNING.fastBallSpeed ? BOT_TUNING.fastReceiveRangeBonus * 0.6 : 0);
-  const diveLimit = BOT_TUNING.diveRangeX * profile.diveMultiplier + (speed >= BOT_TUNING.fastBallSpeed ? BOT_TUNING.fastDiveRangeBonus : 0);
+  const diveLimit = BOT_TUNING.diveRangeX * profile.diveMultiplier + (speed >= BOT_TUNING.fastBallSpeed ? BOT_TUNING.fastDiveRangeBonus : 0) + freedom * 0.08;
   const dx = Math.abs(target.x - player.x);
-  const tooFarForReceive = dx > receiveLimit;
+  const tooFarForReceive = dx > receiveLimit * (0.84 - freedom * 0.2);
   const reachableByDive = dx <= diveLimit;
-  const lead = BOT_TUNING.diveLeadTicks + profile.diveLeadBonus + (speed >= BOT_TUNING.fastBallSpeed ? 8 : 0);
-  const soonLow = target.tick <= lead && target.y <= dynamicLowBallY(speed) * 1.25;
-  const currentEmergency = ball.y <= BOT_TUNING.veryLowBallY && Math.abs(ball.x - player.x) <= BOT_TUNING.diveCommitRangeX * profile.diveMultiplier;
+  const lead = BOT_TUNING.diveLeadTicks + profile.diveLeadBonus + (speed >= BOT_TUNING.fastBallSpeed ? 8 : 0) + Math.round(freedom * 20);
+  const soonLow = target.tick <= lead && target.y <= dynamicLowBallY(speed) * (1.35 + freedom);
+  const currentEmergency = ball.y <= BOT_TUNING.veryLowBallY + freedom * 0.04 && Math.abs(ball.x - player.x) <= BOT_TUNING.diveCommitRangeX * profile.diveMultiplier + freedom * 0.06;
   return (tooFarForReceive && reachableByDive && soonLow && target.vy <= 0) || currentEmergency;
 }
 
 function shouldBlock(context, prediction) {
   const { player, ball, playerSide, netX, profile } = context;
-  const nearNet = Math.abs(ball.x - netX) <= BOT_TUNING.blockNetRange * profile.blockMultiplier;
+  const freedom = profile.skillFreedom ?? 0;
+  const nearNet = Math.abs(ball.x - netX) <= BOT_TUNING.blockNetRange * profile.blockMultiplier + freedom * 0.05;
   const blockX = getBlockX(context);
-  const aligned = Math.abs(player.x - blockX) <= BOT_TUNING.blockXRange * profile.blockMultiplier;
-  const highEnough = ball.y >= BOT_TUNING.highBallY * 0.92;
-  const threat = ballMovingTowardSide(ball, playerSide) || isOpponentLikelyAttacking(context) || prediction.willEnterMyCourt;
-  const timing = prediction.intercept?.tick == null || prediction.intercept.tick <= BOT_TUNING.blockLeadTicks + profile.blockLeadBonus;
+  const aligned = Math.abs(player.x - blockX) <= BOT_TUNING.blockXRange * profile.blockMultiplier + freedom * 0.04;
+  const highEnough = ball.y >= BOT_TUNING.highBallY * (0.88 - freedom * 0.18);
+  const threat = ballMovingTowardSide(ball, playerSide) || isOpponentLikelyAttacking(context) || prediction.willEnterMyCourt || Math.abs(ball.x - netX) < 0.08 + freedom * 0.08;
+  const timing = prediction.intercept?.tick == null || prediction.intercept.tick <= BOT_TUNING.blockLeadTicks + profile.blockLeadBonus + Math.round(freedom * 20);
   return nearNet && aligned && highEnough && threat && timing;
 }
 
@@ -510,8 +517,14 @@ function shouldJump(context, prediction) {
 function canUseAction(actionName, context, urgency = 0) {
   const cooldown = context.cooldowns?.[actionName] ?? 0;
   if (cooldown <= 0) return true;
-  if (urgency < 0.85) return false;
-  const maxOverrideCooldown = actionName === "dive" ? 5 : 3;
+
+  const freedom = context.profile?.skillFreedom ?? 0;
+  const skillAction = actionName === "receive" || actionName === "dive" || actionName === "block";
+  const urgencyGate = skillAction ? 0.58 - freedom * 0.7 : 0.85;
+  if (urgency < urgencyGate) return false;
+
+  const baseOverride = actionName === "dive" ? 7 : actionName === "receive" ? 5 : actionName === "block" ? 5 : 3;
+  const maxOverrideCooldown = baseOverride + Math.round(freedom * 10);
   return cooldown <= maxOverrideCooldown;
 }
 

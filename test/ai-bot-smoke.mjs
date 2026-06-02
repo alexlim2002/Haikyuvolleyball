@@ -120,6 +120,35 @@ function bot(profile = 'rally', extra = {}) {
   assert.equal(inputs['2P_DOWN'], true, 'fast falling ball should trigger earlier RECEIVE');
 }
 
+
+{
+  const ai = bot('aggressive');
+  const inputs = ai.makeInputs(baseState({
+    player2: { x: 0.61, y: 0, vx: 0, vy: 0, facing: -1, onGround: true, actionType: 'IDLE', actionTick: 0, actionDuration: 0, stamina: 120 },
+    player1: { x: 0.45, y: 0, vx: 0, vy: 0.002, facing: 1, onGround: false, actionType: 'JUMP', actionTick: 5, actionDuration: 0, stamina: 120 },
+    ball: { x: 0.535, y: 0.27, vx: 0.001, vy: -0.001, actionRangeCooldown: 0 },
+  }));
+  assert.equal(inputs['2P_DOUBLE_UP'], true, 'aggressive profile should block more freely near the net');
+}
+
+{
+  const ai = bot('defensive');
+  const inputs = ai.makeInputs(baseState({
+    player2: { x: 0.92, y: 0, vx: 0, vy: 0, facing: -1, onGround: true, actionType: 'IDLE', actionTick: 0, actionDuration: 0, stamina: 120 },
+    ball: { x: 0.66, y: 0.13, vx: 0.002, vy: -0.006, actionRangeCooldown: 0 },
+  }));
+  assert.equal(inputs['2P_DOUBLE_LEFT'], true, 'defensive profile should dive more freely for far low balls');
+}
+
+{
+  const ai = bot('rally');
+  const inputs = ai.makeInputs(baseState({
+    player2: { x: 0.74, y: 0, vx: 0, vy: 0, facing: -1, onGround: true, actionType: 'IDLE', actionTick: 0, actionDuration: 0, stamina: 120 },
+    ball: { x: 0.72, y: 0.18, vx: 0.004, vy: -0.004, actionRangeCooldown: 0 },
+  }));
+  assert.equal(inputs['2P_DOWN'], true, 'rally profile should use stable receives before the ball gets too low');
+}
+
 {
   const ai = bot('rally');
   assert.doesNotThrow(() => ai.makeInputs({ phase: 'rally' }), 'missing partial state should not crash');
