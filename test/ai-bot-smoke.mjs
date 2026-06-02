@@ -176,6 +176,31 @@ function bot(profile = 'rally', extra = {}) {
 }
 
 {
+  const ai = bot('defensive', { maxStamina: 120 });
+  const inputs = ai.makeInputs(baseState({
+    player2: { x: 0.88, y: 0, vx: 0, vy: 0, facing: -1, onGround: true, actionType: 'IDLE', actionTick: 0, actionDuration: 0, stamina: 30 },
+    ball: { x: 0.72, y: 0.075, vx: 0, vy: -0.003, actionRangeCooldown: 0 },
+  }));
+  assert.equal(inputs['2P_DOUBLE_LEFT'], false, 'low-stamina bot should avoid non-emergency DIVE to conserve stamina');
+  assert.equal(inputs['2P_LEFT'], true, 'low-stamina bot should reposition instead of spending stamina on DIVE');
+  assert.equal(ai.getDebugInfo().staminaRatio, 0.25, 'debug info should expose current stamina ratio');
+}
+
+{
+  const ai = bot('aggressive', { serveTypes: ['JUMP', 'OVERHAND'], maxStamina: 120 });
+  const inputs = ai.makeInputs(baseState({
+    phase: 'serve',
+    serveStep: 'tossed',
+    server: 'player2',
+    serverSide: 'right',
+    player2: { x: 0.75, y: 0, vx: 0, vy: 0, facing: -1, onGround: true, actionType: 'SERVE', actionTick: 0, actionDuration: 0, stamina: 24 },
+    ball: { x: 0.7125, y: 0.125, vx: 0, vy: 0.01, actionRangeCooldown: 0 },
+  }));
+  assert.equal(inputs['2P_UP'], false, 'low-stamina jump-serve-capable bot should avoid jump serve');
+  assert.equal(inputs['2P_ACTION'], true, 'low-stamina bot should prefer a grounded overhand serve when available');
+}
+
+{
   const ai = bot('rally');
   assert.doesNotThrow(() => ai.makeInputs({ phase: 'rally' }), 'missing partial state should not crash');
 }
