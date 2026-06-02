@@ -122,6 +122,21 @@ function bot(profile = 'rally', extra = {}) {
   assert.equal(inputs['2P_ACTION'], true, 'airborne bot should hit jump serve in timing window');
 }
 
+
+{
+  const ai = bot('rally', { serveTypes: ['JUMP', 'OVERHAND'] });
+  const inputs = ai.makeInputs(baseState({
+    phase: 'serve',
+    serveStep: 'tossed',
+    server: 'player2',
+    serverSide: 'right',
+    serveTossY: 0.46,
+    player2: { x: 0.92, y: 0.03, vx: 0, vy: 0.015, facing: -1, onGround: false, actionType: 'JUMP', actionTick: 2, actionDuration: 0, stamina: 120 },
+    ball: { x: 0.8825, y: 0.13, vx: 0, vy: 0.014, actionRangeCooldown: 0 },
+  }));
+  assert.equal(inputs['2P_ACTION'], false, 'rally jump serve should wait instead of hitting at a low early toss point');
+}
+
 {
   const ai = bot('defensive');
   const inputs = ai.makeInputs(baseState({
@@ -167,13 +182,32 @@ function bot(profile = 'rally', extra = {}) {
 
 {
   const entityManager = new EntityManager();
-  let state = initEntities(entityManager, { serveTypes: ['UNDERHAND'] }, { serveTypes: ['JUMP', 'OVERHAND'] });
+  let state = initEntities(entityManager, { serveTypes: ['UNDERHAND'] }, { id: 'kageyama', serveTypes: ['JUMP', 'OVERHAND'], stats: { speed: '중', power: '중', physique: '중', stamina: '중' } });
+  state.server = 'player2';
+  state.serverSide = 'right';
+  state.phase = 'serve';
+  state.serveStep = 'ready';
+  state.player2.x = 0.92;
+  state.ball.x = 0.8825;
+  state.ball.y = 0.1;
+  state.ball.vx = 0;
+  state.ball.vy = 0;
   const loop = new GameLoop({ entityManager, physicsMap, handlers });
   const ai = bot('rally', { serveTypes: ['JUMP', 'OVERHAND'] });
+  let rallyTick = null;
+  let jumpServeHitTick = null;
   for (let tick = 0; tick < 240; tick++) {
     const inputs = ai.makeInputs(state);
+    const selectedAction = ai.getDebugInfo().selectedAction;
+    if (selectedAction === 'JUMP_SERVE_HIT') jumpServeHitTick = tick;
     const result = loop.tick(state, inputs);
     state = result.nextState;
+    if (state.phase === 'rally') {
+      rallyTick = tick;
+      break;
+    }
   }
   assert.ok(state.player2 && state.ball, '240 tick GameLoop + BotController simulation should keep state valid');
+  assert.ok(jumpServeHitTick !== null && jumpServeHitTick >= 8, 'rally profile should wait for a higher jump-serve contact point');
+  assert.equal(rallyTick, jumpServeHitTick, 'rally profile jump serve should transition to rally on hit');
 }

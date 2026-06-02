@@ -94,6 +94,7 @@ const AI_PROFILES = {
     netPatrol: 0.092,
     actionCooldownScale: 0.72,
     preferJumpServe: true,
+    serveHitRatio: 0.54,
   },
   defensive: {
     label: BOT_LABELS.defensive,
@@ -113,6 +114,7 @@ const AI_PROFILES = {
     netPatrol: 0.135,
     actionCooldownScale: 0.9,
     preferJumpServe: true,
+    serveHitRatio: 0.58,
   },
   rally: {
     label: BOT_LABELS.rally,
@@ -132,6 +134,7 @@ const AI_PROFILES = {
     netPatrol: 0.115,
     actionCooldownScale: 0.96,
     preferJumpServe: true,
+    serveHitRatio: 0.64,
   },
 };
 
@@ -239,6 +242,8 @@ function playServe(inputs, context) {
   const preferJump = canJumpServe && (profile.preferJumpServe || !canOverhand || ball.y > groundHeadY + armLen * 0.72);
   const jumpReadyY = groundHeadY + armLen * (profile.preferJumpServe ? 0.26 : 0.45);
   const jumpServeHitWindow = ball.y >= headY - BOT_TUNING.serveHitBufferY && ball.y <= headY + armLen + BOT_TUNING.serveHitBufferY;
+  const tossRatio = state.serveTossY > 0 ? ball.y / state.serveTossY : 1;
+  const jumpHitReady = tossRatio >= (profile.serveHitRatio ?? 0.58) || ball.vy < 0;
 
   if (preferJump) {
     if (player.onGround && ball.y >= jumpReadyY && ball.vy >= -BOT_TUNING.serveJumpLeadY && canUseAction("serveJump", context, 1)) {
@@ -247,7 +252,7 @@ function playServe(inputs, context) {
       return "SERVE_JUMP";
     }
 
-    if (!player.onGround && jumpServeHitWindow && canUseAction("serveAction", context, 1)) {
+    if (!player.onGround && jumpServeHitWindow && jumpHitReady && canUseAction("serveAction", context, 1)) {
       inputs[actionKey] = true;
       setCooldown("serveAction", context, 1);
       return "JUMP_SERVE_HIT";
@@ -260,6 +265,8 @@ function playServe(inputs, context) {
       setCooldown("serveAction", context, 1);
       return "OVERHAND_FALLBACK_SERVE";
     }
+
+    if (!player.onGround) return null;
   }
 
   if (canOverhand && ball.y >= groundHeadY && ball.y <= groundHeadY + armLen && canUseAction("serveAction", context, 1)) {
