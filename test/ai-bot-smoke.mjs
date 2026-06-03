@@ -231,6 +231,36 @@ function bot(profile = 'rally', extra = {}) {
 }
 
 {
+  const ai = bot('defensive', { maxStamina: 120 });
+  const inputs = ai.makeInputs(baseState({
+    player2: { x: 0.74, y: 0, vx: 0, vy: 0, facing: -1, onGround: true, actionType: 'IDLE', actionTick: 0, actionDuration: 0, stamina: 12 },
+    ball: { x: 0.70, y: 0.14, vx: 0.001, vy: -0.003, actionRangeCooldown: 0 },
+  }));
+  assert.equal(inputs['2P_ACTION'], true, 'low-stamina defensive bot should clear attackable balls instead of only receiving');
+  assert.equal(inputs['2P_DOWN'], false, 'defensive low-stamina clear should prevent receive-only loops');
+  assert.equal(ai.getDebugInfo().selectedAction, 'LOW_STAMINA_CLEAR', 'defensive debug info should identify low-stamina clear');
+}
+
+{
+  const ai = bot('rally', { maxStamina: 120 });
+  const state = baseState({
+    player2: { x: 0.74, y: 0, vx: 0, vy: 0, facing: -1, onGround: true, actionType: 'IDLE', actionTick: 0, actionDuration: 0, stamina: 16 },
+    ball: { x: 0.72, y: 0.10, vx: 0, vy: -0.002, actionRangeCooldown: 0 },
+  });
+  let sawReceive = false;
+  let sawClear = false;
+  for (let tick = 0; tick < 36; tick++) {
+    const inputs = ai.makeInputs(state);
+    const action = ai.getDebugInfo().selectedAction;
+    sawReceive ||= action === 'RECEIVE';
+    sawClear ||= action === 'LOW_STAMINA_CLEAR';
+    state.ball.y = tick < 8 ? 0.10 : 0.14;
+  }
+  assert.equal(sawReceive, true, 'low-stamina rally bot should still save very low balls first');
+  assert.equal(sawClear, true, 'low-stamina rally bot should switch from repeated RECEIVE to clear when the ball is playable');
+}
+
+{
   const ai = bot('aggressive', { serveTypes: ['JUMP', 'OVERHAND'], maxStamina: 120 });
   const inputs = ai.makeInputs(baseState({
     phase: 'serve',
