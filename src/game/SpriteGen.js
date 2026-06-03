@@ -4,10 +4,7 @@
  */
 
 import { CHARACTERS } from './Characters.js';
-
-function assetPath(path) {
-  return `/asset/${path.split('/').map(encodeURIComponent).join('/')}`;
-}
+import { assetPath } from '../utils/assetPath.js';
 
 async function bmp(canvas) {
   return createImageBitmap(canvas);

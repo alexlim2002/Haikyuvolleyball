@@ -7,17 +7,27 @@
 
 ## 실행 방법
 
-빌드 후 `dist/index.html`을 로컬 서버로 열면 됩니다.
+프로젝트 루트에서 정적 서버를 실행한 뒤 루트 주소(`/`)로 접속합니다.
 
-```powershell
-# 빌드
-.\build.ps1
+```bash
+python3 -m http.server 5173 --bind 127.0.0.1
+```
 
-# 로컬 서버 예시 (VS Code Live Server, Python 등)
-python -m http.server --directory dist
+브라우저 주소:
+
+```text
+http://127.0.0.1:5173/
 ```
 
 > **주의**: `file://`로 직접 열면 ES 모듈 로딩 오류가 발생합니다. 반드시 로컬 서버를 사용하세요.
+> `src/index.html`을 직접 열지 말고 루트 `/`로 접속하세요. 정적 asset 경로는 `/asset/...` 기준입니다.
+
+빌드 산출물을 확인하려면 다음을 실행합니다.
+
+```bash
+sh build.sh
+python3 -m http.server 5173 --bind 127.0.0.1 --directory dist
+```
 
 ## 게임 소개
 
