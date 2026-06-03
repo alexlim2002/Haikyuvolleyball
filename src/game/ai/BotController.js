@@ -645,20 +645,25 @@ function getSendOverPreparationX(context, prediction) {
 }
 
 function shouldLowStaminaClear(context, prediction) {
-  const { player, ball, playerSide, netX, profile } = context;
-  if (context.profileId !== "aggressive" || !isLowStamina(context)) return false;
+  const { player, ball, playerSide, netX, profile, memory } = context;
+  if (!isLowStamina(context)) return false;
 
-  const inFront = (ball.x - player.x) * getFacingTowardOpponent(playerSide) > 0;
+  const facing = getFacingTowardOpponent(playerSide);
+  const inFront = (ball.x - player.x) * facing > -COMMON_SEND_OVER.clearAttemptRange * 0.12;
   if (!inFront) return false;
 
   const spikeFreedom = profile.spikeFreedom ?? 0;
+  const aggression = profile.sendOverAggression ?? 1;
+  const risk = profile.sendOverRisk ?? 1;
   const dx = Math.abs(ball.x - player.x);
   const dy = Math.abs(ball.y - (player.y + 0.10));
-  const closeEnough = dx <= BOT_TUNING.spikeRangeX * profile.spikeMultiplier + spikeFreedom * 0.06;
-  const reachableHeight = ball.y >= BOT_TUNING.veryLowBallY && ball.y <= BOT_TUNING.attackMaxY + spikeFreedom * 0.08;
+  const closeEnough = dx <= COMMON_SEND_OVER.clearAttemptRange * (0.85 + aggression * 0.28) + spikeFreedom * 0.05;
+  const reachableHeight = ball.y >= COMMON_SEND_OVER.clearAttemptY * (1.02 - risk * 0.12) && ball.y <= BOT_TUNING.attackMaxY + spikeFreedom * 0.08;
   const reachableBody = dy <= BOT_TUNING.spikeRangeY * profile.spikeMultiplier + spikeFreedom * 0.08;
   const attackableCourt = isInMyCourt(ball.x, playerSide, netX) || Math.abs(ball.x - netX) <= 0.12 + spikeFreedom * 0.18;
-  const needsClear = shouldReceive(context, prediction) || prediction.willEnterMyCourt || isInMyCourt(ball.x, playerSide, netX);
+  const repeatedReceive = (memory?.consecutiveReceiveCount ?? 0) >= COMMON_SEND_OVER.receiveRepeatLimit;
+  const lingeringOwnCourt = (memory?.ownCourtTicks ?? 0) >= COMMON_SEND_OVER.minOwnCourtTicksBeforeUrgency * 0.5;
+  const needsClear = shouldReceive(context, prediction) || repeatedReceive || lingeringOwnCourt || prediction.willEnterMyCourt || isInMyCourt(ball.x, playerSide, netX);
 
   return closeEnough && reachableHeight && reachableBody && attackableCourt && needsClear;
 }
