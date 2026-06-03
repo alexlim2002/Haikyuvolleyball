@@ -64,7 +64,40 @@ function bot(profile = 'rally', extra = {}) {
     player1: { x: 0.46, y: 0, vx: 0, vy: 0.002, facing: 1, onGround: false, actionType: 'JUMP', actionTick: 5, actionDuration: 0, stamina: 120 },
     ball: { x: 0.52, y: 0.28, vx: 0.002, vy: -0.001, actionRangeCooldown: 0 },
   }));
-  assert.equal(inputs['2P_DOUBLE_UP'], true, 'rally high net threat should still trigger BLOCK');
+  assert.equal(inputs['2P_ACTION'], true, 'rally high own-court net ball should use common send-over SPIKE intent');
+  assert.equal(ai.getDebugInfo().selectedAction, 'SEND_OVER_SPIKE', 'debug info should identify send-over spike priority');
+}
+
+
+{
+  const ai = bot('defensive');
+  const state = baseState({
+    player2: { x: 0.74, y: 0, vx: 0, vy: 0, facing: -1, onGround: true, actionType: 'IDLE', actionTick: 0, actionDuration: 0, stamina: 120 },
+    ball: { x: 0.69, y: 0.20, vx: 0, vy: -0.002, actionRangeCooldown: 0 },
+  });
+  const inputs = ai.makeInputs(state);
+  assert.equal(inputs['2P_ACTION'], true, 'defensive profile should share send-over intent for attackable own-court balls');
+  assert.equal(inputs['2P_LEFT'], true, 'send-over hit should include movement toward the opponent court');
+}
+
+{
+  const ai = bot('rally');
+  const state = baseState({
+    player2: { x: 0.74, y: 0, vx: 0, vy: 0, facing: -1, onGround: true, actionType: 'IDLE', actionTick: 0, actionDuration: 0, stamina: 120 },
+    ball: { x: 0.71, y: 0.10, vx: 0, vy: -0.002, actionRangeCooldown: 0 },
+  });
+  let sawReceive = false;
+  let sawSendOver = false;
+  for (let tick = 0; tick < 48; tick++) {
+    const inputs = ai.makeInputs(state);
+    const action = ai.getDebugInfo().selectedAction;
+    sawReceive ||= action === 'RECEIVE';
+    sawSendOver ||= action?.startsWith('SEND_OVER');
+    state.ball.y = tick < 16 ? 0.10 : 0.18;
+  }
+  assert.equal(sawReceive, true, 'low close ball should still allow RECEIVE before urgency rises');
+  assert.equal(sawSendOver, true, 'repeated own-court handling should eventually try send-over action');
+  assert.ok(ai.getDebugInfo().ownCourtTicks >= 48, 'own-court tick tracker should increase while ball remains on AI side');
 }
 
 {

@@ -46,6 +46,19 @@ const STAMINA_TUNING = {
   },
 };
 
+
+const COMMON_SEND_OVER = {
+  enabled: true,
+  minOwnCourtTicksBeforeUrgency: 24,
+  receiveRepeatLimit: 2,
+  clearAttemptRange: 118 / UNIT,
+  clearAttemptY: 0.115,
+  spikeAttemptRange: 96 / UNIT,
+  spikeAttemptY: 0.155,
+  forwardPressure: 38 / UNIT,
+  maxDirectionalAssistRange: 150 / UNIT,
+};
+
 const BOT_TUNING = {
   predictionTicks: 132,
   reactionDelayTicks: 2,
@@ -111,6 +124,8 @@ const AI_PROFILES = {
     actionCooldownScale: 0.72,
     preferJumpServe: true,
     serveHitRatio: 0.54,
+    sendOverAggression: 1.22,
+    sendOverRisk: 1.18,
   },
   defensive: {
     label: BOT_LABELS.defensive,
@@ -131,6 +146,8 @@ const AI_PROFILES = {
     actionCooldownScale: 0.9,
     preferJumpServe: true,
     serveHitRatio: 0.58,
+    sendOverAggression: 0.82,
+    sendOverRisk: 0.82,
   },
   rally: {
     label: BOT_LABELS.rally,
@@ -151,6 +168,8 @@ const AI_PROFILES = {
     actionCooldownScale: 0.96,
     preferJumpServe: true,
     serveHitRatio: 0.64,
+    sendOverAggression: 1.0,
+    sendOverRisk: 0.96,
   },
 };
 
@@ -166,6 +185,7 @@ export function createBotController(config = {}) {
   let observedMaxStamina = finiteNumber(cfg.maxStamina, null);
   const cooldowns = makeCooldownState();
   let lastDebugInfo = makeInitialDebugInfo(currentProfileId);
+  const rallyMemory = makeRallyMemory();
 
   function beginNewRally(rallyKey) {
     if (currentRallyKey === rallyKey) return;
@@ -173,6 +193,7 @@ export function createBotController(config = {}) {
     currentRallyKey = rallyKey;
     currentProfileId = normalizeProfileId(cfg.profile ?? cfg.forcedType) ?? chooseRandomProfileId();
     resetCooldowns(cooldowns);
+    resetRallyMemory(rallyMemory);
     lastDebugInfo = makeInitialDebugInfo(currentProfileId);
   }
 
@@ -188,6 +209,8 @@ export function createBotController(config = {}) {
     }
 
     context.cooldowns = cooldowns;
+    context.memory = rallyMemory;
+    updateRallyMemoryBeforeAction(rallyMemory, context);
     observedMaxStamina = updateObservedMaxStamina(observedMaxStamina, context.player, cfg);
     context.maxStamina = observedMaxStamina;
     context.staminaRatio = getStaminaRatio(context);
@@ -202,6 +225,7 @@ export function createBotController(config = {}) {
     const targetInfo = getTargetX(context, prediction);
     moveToward(inputs, context, targetInfo.targetX);
     const selectedAction = chooseAction(inputs, context, prediction);
+    updateRallyMemoryAfterAction(rallyMemory, selectedAction, context);
 
     lastDebugInfo = buildDebugInfo(currentProfileId, getCurrentTypeLabel(), targetInfo, prediction, selectedAction, cooldowns, context);
     return inputs;
@@ -414,6 +438,12 @@ function getTargetX(context, prediction) {
   const comingToMe = ballInMyCourt || ballMovingTowardSide(ball, playerSide);
   const nearNet = Math.abs(ball.x - netX) < BOT_TUNING.blockNetRange * profile.blockMultiplier;
   const highNearNet = nearNet && ball.y > BOT_TUNING.highBallY;
+  const sendOver = shouldSendOver(context.state, prediction, profile, context);
+
+  if (sendOver) {
+    const targetX = getSendOverPreparationX(context, prediction);
+    return { targetX, mode: "send-over" };
+  }
 
   if (highNearNet && (comingToMe || isOpponentLikelyAttacking(context))) {
     return { targetX: clampToCourt(getBlockX(context), playerSide, context), mode: "block" };
@@ -437,16 +467,40 @@ function getTargetX(context, prediction) {
 }
 
 function chooseAction(inputs, context, prediction) {
-  const urgency = getUrgency(context, prediction);
+  const sendOverChoice = chooseSendOverAction(context.state, prediction, context.profile, context);
+  const urgency = Math.max(getUrgency(context, prediction), sendOverChoice?.urgency ?? 0);
 
   if (shouldLowStaminaClear(context, prediction) && canUseAction("clear", context, 1)) {
     inputs[inputName(context.playerSide, "ACTION")] = true;
+    pressTowardOpponent(inputs, context);
     setCooldown("clear", context, 1);
     return "LOW_STAMINA_CLEAR";
   }
 
+  if (sendOverChoice?.action === "SPIKE" && canUseAction("spike", context, urgency)) {
+    inputs[inputName(context.playerSide, "ACTION")] = true;
+    pressTowardOpponent(inputs, context);
+    setCooldown("spike", context, urgency);
+    return sendOverChoice.jump ? "SEND_OVER_JUMP_SPIKE" : "SEND_OVER_SPIKE";
+  }
+
+  if (sendOverChoice?.action === "JUMP_SPIKE") {
+    pressTowardOpponent(inputs, context);
+    if (!context.player.onGround && canUseAction("spike", context, urgency)) {
+      inputs[inputName(context.playerSide, "ACTION")] = true;
+      setCooldown("spike", context, urgency);
+      return "SEND_OVER_SPIKE";
+    }
+    if (context.player.onGround && canUseAction("jump", context, urgency)) {
+      inputs[inputName(context.playerSide, "UP")] = true;
+      setCooldown("jump", context, urgency);
+      return "SEND_OVER_JUMP";
+    }
+  }
+
   if (shouldReceive(context, prediction) && canUseAction("receive", context, urgency)) {
     inputs[inputName(context.playerSide, "DOWN")] = true;
+    if (sendOverChoice?.directionalAssist) pressTowardOpponent(inputs, context);
     setCooldown("receive", context, urgency);
     return "RECEIVE";
   }
@@ -459,6 +513,7 @@ function chooseAction(inputs, context, prediction) {
 
   if (context.profileId === "aggressive" && shouldSpike(context, prediction) && canUseAction("spike", context, urgency)) {
     inputs[inputName(context.playerSide, "ACTION")] = true;
+    pressTowardOpponent(inputs, context);
     setCooldown("spike", context, urgency);
     return "SPIKE";
   }
@@ -471,6 +526,7 @@ function chooseAction(inputs, context, prediction) {
 
   if (shouldSpike(context, prediction) && canUseAction("spike", context, urgency)) {
     inputs[inputName(context.playerSide, "ACTION")] = true;
+    pressTowardOpponent(inputs, context);
     setCooldown("spike", context, urgency);
     return "SPIKE";
   }
@@ -482,6 +538,110 @@ function chooseAction(inputs, context, prediction) {
   }
 
   return null;
+}
+
+function shouldSendOver(_state, prediction, profile, context) {
+  if (!COMMON_SEND_OVER.enabled || !context?.ball || !context?.player) return false;
+  const { ball, playerSide, netX, memory } = context;
+  const ballInMyCourt = isInMyCourt(ball.x, playerSide, netX);
+  const predictedMyCourt = prediction?.willEnterMyCourt || isInMyCourt(prediction?.landingX, playerSide, netX);
+  if (!ballInMyCourt && !predictedMyCourt) return false;
+
+  const attackable = canAttackOrClear(context.player, ball, context);
+  const ownCourtTicks = memory?.ownCourtTicks ?? 0;
+  const repeatedReceive = (memory?.consecutiveReceiveCount ?? 0) >= COMMON_SEND_OVER.receiveRepeatLimit;
+  const urgency = getSendOverUrgency(context, prediction, profile);
+
+  return attackable || repeatedReceive || ownCourtTicks >= COMMON_SEND_OVER.minOwnCourtTicksBeforeUrgency || urgency >= 0.45;
+}
+
+function canAttackOrClear(player, ball, context) {
+  const profile = context.profile ?? AI_PROFILES.rally;
+  const aggression = profile.sendOverAggression ?? 1;
+  const risk = profile.sendOverRisk ?? 1;
+  const facing = getFacingTowardOpponent(context.playerSide);
+  const inFront = (ball.x - player.x) * facing > -COMMON_SEND_OVER.clearAttemptRange * 0.18;
+  const dx = Math.abs(ball.x - player.x);
+  const bodyY = player.y + 0.10;
+  const dy = Math.abs(ball.y - bodyY);
+  const clearRange = COMMON_SEND_OVER.clearAttemptRange * (0.9 + aggression * 0.28);
+  const spikeRange = COMMON_SEND_OVER.spikeAttemptRange * (0.9 + aggression * 0.34);
+  const clearHeight = ball.y >= COMMON_SEND_OVER.clearAttemptY * (1.04 - risk * 0.12);
+  const spikeHeight = ball.y >= COMMON_SEND_OVER.spikeAttemptY * (1.08 - risk * 0.14);
+  const notTooHigh = ball.y <= BOT_TUNING.attackMaxY + (profile.spikeFreedom ?? 0) * 0.12;
+  const bodyReach = dy <= BOT_TUNING.spikeRangeY * Math.max(1, profile.spikeMultiplier) + (profile.skillFreedom ?? 0) * 0.08;
+  return inFront && notTooHigh && bodyReach && ((spikeHeight && dx <= spikeRange) || (clearHeight && dx <= clearRange));
+}
+
+function getOpponentCourtTargetX(state, botSide) {
+  const cfg = DEFAULTS;
+  const netX = finiteNumber(state?.net?.x, cfg.mapWidth / 2);
+  const opponentSide = botSide === "left" ? "right" : "left";
+  const bounds = getCourtBounds(opponentSide, netX, cfg);
+  return opponentSide === "left"
+    ? bounds.min + (bounds.max - bounds.min) * 0.58
+    : bounds.min + (bounds.max - bounds.min) * 0.42;
+}
+
+function chooseSendOverAction(state, prediction, profile, context) {
+  if (!shouldSendOver(state, prediction, profile, context)) return null;
+  const { player, ball, playerSide, netX, memory } = context;
+  const urgency = getSendOverUrgency(context, prediction, profile);
+  const ballInMyCourt = isInMyCourt(ball.x, playerSide, netX);
+  const reachable = canAttackOrClear(player, ball, context);
+  const dx = Math.abs(ball.x - player.x);
+  const height = ball.y;
+  const repeatedReceive = (memory?.consecutiveReceiveCount ?? 0) >= COMMON_SEND_OVER.receiveRepeatLimit;
+  const oldOwnCourtBall = (memory?.ownCourtTicks ?? 0) >= COMMON_SEND_OVER.minOwnCourtTicksBeforeUrgency;
+  const nearNet = Math.abs(ball.x - netX) <= 0.15;
+  const highEnough = height >= COMMON_SEND_OVER.spikeAttemptY * (context.profileId === "defensive" ? 1.02 : 0.94);
+  const notMovingAwayFromOpponent = finiteNumber(ball.vx, 0) * getFacingTowardOpponent(playerSide) >= -0.001;
+
+  if (reachable && highEnough && (notMovingAwayFromOpponent || repeatedReceive || oldOwnCourtBall || nearNet || urgency >= 0.35)) {
+    return { action: "SPIKE", urgency, directionalAssist: true };
+  }
+
+  if (
+    player.onGround &&
+    highEnough &&
+    notMovingAwayFromOpponent &&
+    height > dynamicLowBallY(prediction?.speed ?? 0) * 1.18 &&
+    dx <= COMMON_SEND_OVER.spikeAttemptRange * (1.1 + (profile.sendOverAggression ?? 1) * 0.28)
+  ) {
+    return { action: "JUMP_SPIKE", urgency, directionalAssist: true };
+  }
+
+  if ((repeatedReceive || oldOwnCourtBall) && reachable && height >= COMMON_SEND_OVER.clearAttemptY) {
+    return { action: "SPIKE", urgency: Math.max(urgency, 0.72), directionalAssist: true };
+  }
+
+  if (ballInMyCourt && height <= dynamicLowBallY(prediction?.speed ?? 0) * 1.12) {
+    return { action: "RECEIVE", urgency, directionalAssist: true };
+  }
+
+  return { action: null, urgency, directionalAssist: true };
+}
+
+function getSendOverUrgency(context, prediction, profile) {
+  const ownCourtTicks = context.memory?.ownCourtTicks ?? 0;
+  const receiveCount = context.memory?.consecutiveReceiveCount ?? 0;
+  const tickPressure = clamp((ownCourtTicks - COMMON_SEND_OVER.minOwnCourtTicksBeforeUrgency) / 70, 0, 0.45);
+  const receivePressure = clamp((receiveCount - COMMON_SEND_OVER.receiveRepeatLimit + 1) * 0.18, 0, 0.42);
+  const landingPressure = isInMyCourt(prediction?.landingX, context.playerSide, context.netX) ? 0.12 : 0;
+  const profilePush = (profile.sendOverAggression ?? 1) * 0.08;
+  return clamp(tickPressure + receivePressure + landingPressure + profilePush, 0, 1);
+}
+
+function getSendOverPreparationX(context, prediction) {
+  const { playerSide, netX, ball, player } = context;
+  const facing = getFacingTowardOpponent(playerSide);
+  const interceptX = prediction?.intercept?.x ?? ball.x;
+  const behindBallX = interceptX - facing * COMMON_SEND_OVER.forwardPressure;
+  const attackX = getAttackX(context);
+  const urgency = getSendOverUrgency(context, prediction, context.profile);
+  const blended = behindBallX * (0.62 + urgency * 0.18) + attackX * (0.38 - urgency * 0.18);
+  const fallback = player.x + facing * COMMON_SEND_OVER.forwardPressure;
+  return clampToCourt(Number.isFinite(blended) ? blended : fallback, playerSide, context);
 }
 
 function shouldLowStaminaClear(context, prediction) {
@@ -708,6 +868,15 @@ function pressDive(inputs, context, targetX) {
   inputs[inputName(playerSide, targetX < player.x ? "DOUBLE_LEFT" : "DOUBLE_RIGHT")] = true;
 }
 
+function pressTowardOpponent(inputs, context) {
+  const { player, ball, playerSide } = context;
+  if (Math.abs(ball.x - player.x) > COMMON_SEND_OVER.maxDirectionalAssistRange) return;
+  const action = playerSide === "left" ? "RIGHT" : "LEFT";
+  const opposite = playerSide === "left" ? "LEFT" : "RIGHT";
+  inputs[inputName(playerSide, action)] = true;
+  inputs[inputName(playerSide, opposite)] = false;
+}
+
 export function clampToCourt(x, side, context = {}) {
   const cfg = context.cfg ?? DEFAULTS;
   const netX = finiteNumber(context.netX, cfg.mapWidth / 2);
@@ -785,6 +954,41 @@ function makeCooldownState() {
   return { receive: 0, dive: 0, jump: 0, spike: 0, block: 0, serveAction: 0, serveJump: 0, clear: 0 };
 }
 
+function makeRallyMemory() {
+  return {
+    ownCourtTicks: 0,
+    consecutiveReceiveCount: 0,
+    lastSelectedAction: null,
+    sendOverUrgency: 0,
+  };
+}
+
+function resetRallyMemory(memory) {
+  memory.ownCourtTicks = 0;
+  memory.consecutiveReceiveCount = 0;
+  memory.lastSelectedAction = null;
+  memory.sendOverUrgency = 0;
+}
+
+function updateRallyMemoryBeforeAction(memory, context) {
+  if (isInMyCourt(context.ball.x, context.playerSide, context.netX)) {
+    memory.ownCourtTicks++;
+  } else {
+    memory.ownCourtTicks = 0;
+    memory.consecutiveReceiveCount = 0;
+  }
+}
+
+function updateRallyMemoryAfterAction(memory, selectedAction, context) {
+  if (selectedAction === "RECEIVE") {
+    memory.consecutiveReceiveCount++;
+  } else if (selectedAction && selectedAction !== "SEND_OVER_JUMP") {
+    memory.consecutiveReceiveCount = 0;
+  }
+  memory.lastSelectedAction = selectedAction;
+  memory.sendOverUrgency = getSendOverUrgency(context, null, context.profile);
+}
+
 function resetCooldowns(cooldowns) {
   for (const key of Object.keys(cooldowns)) cooldowns[key] = 0;
 }
@@ -811,6 +1015,9 @@ function makeInitialDebugInfo(profile) {
     interceptY: null,
     interceptTick: null,
     selectedAction: null,
+    ownCourtTicks: 0,
+    consecutiveReceiveCount: 0,
+    sendOverUrgency: 0,
     staminaRatio: null,
     cooldowns: makeCooldownState(),
   };
@@ -829,6 +1036,10 @@ function buildDebugInfo(profile, profileLabel, targetInfo, prediction, selectedA
     interceptTick: prediction?.intercept?.tick ?? null,
     ballSpeed: roundDebug(prediction?.speed),
     selectedAction,
+    ownCourtTicks: context?.memory?.ownCourtTicks ?? 0,
+    consecutiveReceiveCount: context?.memory?.consecutiveReceiveCount ?? 0,
+    sendOverUrgency: roundDebug(context?.memory?.sendOverUrgency),
+    opponentCourtTargetX: context ? roundDebug(getOpponentCourtTargetX(context.state, context.playerSide)) : null,
     staminaRatio: context ? roundDebug(getStaminaRatio(context)) : null,
     cooldowns: { ...cooldowns },
   };
