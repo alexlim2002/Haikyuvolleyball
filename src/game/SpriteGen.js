@@ -6,8 +6,7 @@
 import { CHARACTERS } from './Characters.js';
 
 function assetPath(path) {
-  const base = new URL('../asset/', import.meta.url).href;
-  return base + path.split('/').map(encodeURIComponent).join('/');
+  return `/asset/${path.split('/').map(encodeURIComponent).join('/')}`;
 }
 
 async function bmp(canvas) {
