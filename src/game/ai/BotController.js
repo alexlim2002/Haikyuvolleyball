@@ -32,18 +32,21 @@ const DEFAULTS = {
 
 const SIMPLE_AI = {
   moveDeadZone: 12 / UNIT,
-  receiveXRange: 72 / UNIT,
-  receiveYMax: 124 / UNIT,
-  receiveEmergencyY: 78 / UNIT,
-  diveYMax: 66 / UNIT,
-  diveXMin: 92 / UNIT,
-  diveXMax: 180 / UNIT,
+  receiveXRange: 88 / UNIT,
+  serveReceiveXRange: 116 / UNIT,
+  receiveYMax: 145 / UNIT,
+  serveReceiveYMax: 168 / UNIT,
+  receiveEmergencyY: 82 / UNIT,
+  diveYMax: 76 / UNIT,
+  serveDiveYMax: 62 / UNIT,
+  diveXMin: 70 / UNIT,
+  diveXMax: 260 / UNIT,
   attackXRange: 58 / UNIT,
   attackYMin: 162 / UNIT,
   attackYMax: 318 / UNIT,
   attackYWindow: 72 / UNIT,
   attackApproachTowardNet: 22 / UNIT,
-  maxPredictionTicks: 90,
+  maxPredictionTicks: 150,
   minShiftInterval: 58,
   minDiveInterval: 78,
   minReceiveInterval: 11,
@@ -52,7 +55,7 @@ const SIMPLE_AI = {
   lowStaminaThreshold: 0.35,
   criticalStaminaThreshold: 0.18,
   receiveSuppressLimit: 2,
-  servePrepareTicks: 8,
+  servePrepareTicks: 2,
   underhandTossWaitTicks: 18,
   underhandFallbackHitTicks: 62,
   jumpServeWaitTicks: 44,
@@ -173,10 +176,33 @@ export function createBotController(config = {}) {
       return finish(inputs, context);
     }
 
-    const targetX = clampToCourt(context.prediction.landingX ?? ball.x, cfg.playerSide, context);
+    const targetX = chooseReceiveTarget(context);
     const receiveTarget = clampToCourt(targetX, cfg.playerSide, context);
     const playerDist = Math.abs(player.x - receiveTarget);
-    const nearBall = Math.abs(player.x - ball.x);
+
+    if (isOpponentServeThreat(context)) {
+      const suppressReceive = shouldSuppressReceive(context);
+      if (shouldReceive(context) && !suppressReceive) {
+        memory.plan = PLANS.RECEIVE;
+        press(inputs, keys.down);
+        memory.lastReceiveTick = memory.tick;
+        memory.postReceiveUntil = memory.tick + SIMPLE_AI.postReceiveFollowTicks;
+        memory.consecutiveReceiveCount += 1;
+        remember(context, ACTIONS.SERVE_RECEIVE, ball.x, inputs);
+        return finish(inputs, context);
+      }
+      if (shouldEmergencyDive(context)) {
+        memory.plan = PLANS.EMERGENCY_DIVE;
+        press(inputs, ball.x < player.x ? keys.diveLeft : keys.diveRight);
+        memory.lastDiveTick = memory.tick;
+        remember(context, ACTIONS.DIVE, ball.x, inputs);
+        return finish(inputs, context);
+      }
+      memory.plan = PLANS.RECEIVE;
+      moveToward(inputs, context, receiveTarget);
+      remember(context, inputs[keys.left] || inputs[keys.right] ? ACTIONS.MOVE : ACTIONS.WAIT, receiveTarget, inputs);
+      return finish(inputs, context);
+    }
 
     if (canSpikeNow(context)) {
       press(inputs, keys.action);
@@ -337,13 +363,14 @@ export function createBotController(config = {}) {
       return;
     }
 
-    const underhandWindow = ball.y >= player.y && ball.y <= headY * 0.95;
-    const overhandWindow = ball.y >= headY && ball.y <= headY + context.armLength;
+    const underhandWindow = ball.y >= player.y && ball.y < headY - 2 / UNIT;
+    const overhandWindow = serveType === "OVERHAND" && ball.y >= headY && ball.y <= headY + context.armLength;
+    const lateUnderhandFallback = serveType === "UNDERHAND" && elapsed >= SIMPLE_AI.underhandFallbackHitTicks && ball.y >= player.y && ball.y < headY;
     if (
       elapsed >= SIMPLE_AI.underhandTossWaitTicks &&
       withinFront &&
       ball.vy <= 0 &&
-      (underhandWindow || overhandWindow || elapsed >= SIMPLE_AI.underhandFallbackHitTicks)
+      (underhandWindow || overhandWindow || lateUnderhandFallback)
     ) {
       press(inputs, keys.action);
       memory.lastShiftTick = memory.tick;
@@ -393,6 +420,9 @@ function makeContext(state, cfg, profile, profileId, keys, memory) {
     currentPlan: memory.plan,
     predictedLandingX: prediction.landingX,
     predictedLandingTick: prediction.landingTick,
+    receiveTargetX: choosePredictionTarget(prediction),
+    firstOwnCourtTick: prediction.firstOwnPoint?.tick ?? null,
+    interceptTick: prediction.intercept?.tick ?? null,
     ballSpeed: ball ? Math.hypot(finiteNumber(ball.vx, 0), finiteNumber(ball.vy, 0)) : 0,
     stamina,
     staminaRatio,
@@ -456,16 +486,27 @@ function moveToward(inputs, context, targetX) {
   return true;
 }
 
+function chooseReceiveTarget(context) {
+  return clampToCourt(choosePredictionTarget(context.prediction), context.cfg.playerSide, context);
+}
+
+function choosePredictionTarget(prediction) {
+  return prediction?.intercept?.x ?? prediction?.firstOwnPoint?.x ?? prediction?.landingX ?? 0.5;
+}
+
 function shouldReceive(context) {
   const { player, ball, cfg, memory, profile } = context;
   if (!player || !ball || player.onGround === false) return false;
   if (!isBallOnOwnSide(ball, cfg.playerSide, context)) return false;
   if (memory.tick - memory.lastReceiveTick < SIMPLE_AI.minReceiveInterval) return false;
-  const xRange = SIMPLE_AI.receiveXRange + profile.receiveExtra + (isOpponentServeThreat(context) ? 24 / UNIT : 0);
-  const nearX = Math.abs(ball.x - player.x) <= xRange;
-  const lowEnough = ball.y <= SIMPLE_AI.receiveYMax;
-  const fallingOrFast = ball.vy <= 0.002 || Math.hypot(ball.vx ?? 0, ball.vy ?? 0) > 8 / UNIT;
-  return nearX && lowEnough && fallingOrFast;
+  const serveThreat = isOpponentServeThreat(context);
+  const xRange = (serveThreat ? SIMPLE_AI.serveReceiveXRange : SIMPLE_AI.receiveXRange) + profile.receiveExtra;
+  const targetX = chooseReceiveTarget(context);
+  const nearBall = Math.abs(ball.x - player.x) <= xRange;
+  const waitingAtLanding = Math.abs(player.x - targetX) <= SIMPLE_AI.moveDeadZone * 1.8 && Math.abs(ball.x - player.x) <= xRange + 26 / UNIT;
+  const lowEnough = ball.y <= (serveThreat ? SIMPLE_AI.serveReceiveYMax : SIMPLE_AI.receiveYMax);
+  const fallingOrFast = ball.vy <= 0.003 || Math.hypot(ball.vx ?? 0, ball.vy ?? 0) > 8 / UNIT;
+  return (nearBall || waitingAtLanding) && lowEnough && fallingOrFast;
 }
 
 function shouldSuppressReceive(context) {
@@ -480,14 +521,18 @@ function shouldEmergencyDive(context) {
   const { player, ball, cfg, memory } = context;
   if (!player || !ball || player.onGround === false) return false;
   if (!isBallOnOwnSide(ball, cfg.playerSide, context)) return false;
-  if (isOpponentServeThreat(context) && ball.y > SIMPLE_AI.diveYMax * 0.82) return false;
-  if (isLowStamina(context)) return false;
+  const serveThreat = isOpponentServeThreat(context);
+  const maxDiveY = serveThreat ? SIMPLE_AI.serveDiveYMax : SIMPLE_AI.diveYMax;
   if (memory.tick - memory.lastDiveTick < SIMPLE_AI.minDiveInterval) return false;
-  if (ball.y > SIMPLE_AI.diveYMax) return false;
-  const landingX = clampToCourt(context.prediction.landingX ?? ball.x, cfg.playerSide, context);
-  const distance = Math.abs(player.x - landingX);
-  const reachable = canReachByWalking(context, landingX);
-  return distance >= SIMPLE_AI.diveXMin && distance <= SIMPLE_AI.diveXMax && !reachable;
+  if (ball.y > maxDiveY) return false;
+  if (context.staminaRatio <= SIMPLE_AI.criticalStaminaThreshold) return false;
+  if (isLowStamina(context) && ball.y > SIMPLE_AI.receiveEmergencyY * 0.62) return false;
+  const targetX = chooseReceiveTarget(context);
+  const distance = Math.abs(player.x - targetX);
+  const ballDistance = Math.abs(player.x - ball.x);
+  const reachable = canReachByWalking(context, targetX);
+  const farEnough = distance >= SIMPLE_AI.diveXMin || ballDistance >= SIMPLE_AI.diveXMin;
+  return farEnough && distance <= SIMPLE_AI.diveXMax && !reachable;
 }
 
 function shouldPrepareAttack(context) {
@@ -529,10 +574,12 @@ function canSpikeNow(context) {
 }
 
 function canReachByWalking(context, targetX) {
-  const { player, prediction, cfg } = context;
-  const ticks = Math.max(1, finiteNumber(prediction.landingTick, 18));
+  const { player, prediction, cfg, ball } = context;
+  const timeCandidates = [prediction.intercept?.tick, prediction.landingTick].filter(Number.isFinite);
+  const ticks = Math.max(1, Math.min(...(timeCandidates.length ? timeCandidates : [18])));
   const speed = finiteNumber(cfg.playerSpeed, DEFAULTS.playerSpeed) * Math.max(0.45, context.staminaRatio || 1);
-  return Math.abs(player.x - targetX) <= speed * ticks + 18 / UNIT;
+  const urgentPenalty = ball && ball.y <= SIMPLE_AI.diveYMax ? 8 / UNIT : 18 / UNIT;
+  return Math.abs(player.x - targetX) <= speed * ticks + urgentPenalty;
 }
 
 function isOpponentServeThreat(context) {
@@ -574,8 +621,8 @@ function isBallOnOwnSide(ball, side, context = {}) {
 function isBallComingToOwnSide(ball, side, context = {}) {
   if (!ball) return false;
   if (isBallOnOwnSide(ball, side, context)) return true;
-  const dir = getNetDirection(side);
-  return finiteNumber(ball.vx, 0) * dir > 0;
+  const vx = finiteNumber(ball.vx, 0);
+  return side === "right" ? vx > 0 : vx < 0;
 }
 
 function getNetDirection(side) {
@@ -655,6 +702,7 @@ export function predictBallLanding(state, botSide = "right", options = {}) {
     landingTick: selected.tick,
     trajectory,
     willEnterMyCourt: !!ownPoint,
+    firstOwnPoint: ownPoint ?? null,
     intercept,
   };
 }

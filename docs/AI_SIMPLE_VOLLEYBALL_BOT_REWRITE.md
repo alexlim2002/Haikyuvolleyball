@@ -92,3 +92,18 @@ sh build.sh
 * 카게야마 JUMP 서브가 너무 즉시 실행되지 않는지.
 * 니시노야/츠키시마/카게야마 low stamina 상황에서 무한 리시브가 줄었는지.
 * Network 탭에 `/src/asset/...` 404 요청이 없는지.
+
+## 7. 3차 보강 내용
+
+* 플레이어 점프 서브 대응을 강화했다.
+  * 공이 아직 상대 코트에 있어도 자기 코트로 넘어오는 속도라면 `WAIT`가 아니라 `RECEIVE` plan으로 전환한다.
+  * 짧은 궤적 예측에서 첫 자기 코트 진입점, 리시브 가능 높이 진입점, 최종 낙하지점을 구분해 더 빨리 위치를 잡는다.
+* 리시브 우선순위를 높였다.
+  * 플레이어가 보낸 공이 자기 코트에서 낮아지고 받을 수 있는 위치면 공격/Shift보다 `RECEIVE`를 먼저 선택한다.
+  * 빠른 점프 서브는 기존보다 넓은 receive range와 receive height로 안정 수비를 시도한다.
+* 낙하지점 선점과 emergency dive를 분리했다.
+  * 시간이 충분하면 예측 지점으로 이동한다.
+  * 체력과 남은 tick 기준으로 이동만으로 도달할 수 없고 공이 바닥 직전이면 마지막 수단으로 Dive를 사용한다.
+* UNDERHAND 서브 안정성을 보강했다.
+  * UNDERHAND-only 캐릭터는 overhand 높이에서 Shift를 누르지 않고, 공이 내려와 머리 아래 타점에 있을 때만 hit한다.
+  * 실제 `GameLoop` smoke test로 UNDERHAND-only 봇이 serve phase에서 rally phase로 넘어가는지 확인했다.

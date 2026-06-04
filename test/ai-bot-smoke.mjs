@@ -239,3 +239,65 @@ function bot(profile = 'rally', extra = {}) {
   }
 }
 
+
+// 14. 플레이어 점프 서브는 예상 낙하지점으로 미리 이동하고 낮아지면 Receive를 최우선 수행한다.
+{
+  const ai = bot('rally', { maxStamina: 120 });
+  const early = ai.makeInputs(baseState({
+    server: 'player1',
+    player1: player({ x: 0.36, y: 0.14, facing: 1, onGround: false, actionType: 'JUMP' }),
+    player2: player({ x: 0.84, stamina: 120 }),
+    ball: { x: 0.42, y: 0.30, vx: 0.012, vy: -0.003, actionRangeCooldown: 0 },
+  }));
+  assert.equal(early['2P_DOUBLE_LEFT'] || early['2P_DOUBLE_RIGHT'], false, 'early jump serve should not dive before landing is urgent');
+  assert.equal(early['2P_LEFT'] || early['2P_RIGHT'], true, 'early jump serve should move toward predicted landing/intercept');
+  assert.equal(ai.getDebugInfo().currentPlan, 'RECEIVE');
+
+  const receive = ai.makeInputs(baseState({
+    server: 'player1',
+    player1: player({ x: 0.36, facing: 1, actionType: 'SERVE_HIT' }),
+    player2: player({ x: 0.70, stamina: 120 }),
+    ball: { x: 0.69, y: 0.13, vx: 0.013, vy: -0.006, actionRangeCooldown: 0 },
+  }));
+  assert.equal(receive['2P_DOWN'], true, 'when player serve is catchable, Receive must be the highest-priority save');
+  assert.equal(receive['2P_ACTION'], false, 'serve receive must not be replaced by Shift');
+}
+
+// 15. 예상 낙하지점에 시간상 도달하기 어려운 낮은 서브는 마지막 수단으로 Dive한다.
+{
+  const ai = bot('defensive', { maxStamina: 120 });
+  const inputs = ai.makeInputs(baseState({
+    server: 'player1',
+    player1: player({ x: 0.37, facing: 1, actionType: 'SERVE_HIT' }),
+    player2: player({ x: 0.90, stamina: 120 }),
+    ball: { x: 0.66, y: 0.055, vx: 0.008, vy: -0.006, actionRangeCooldown: 0 },
+  }));
+  assert.equal(inputs['2P_DOWN'], false, 'unreachable low serve should not pretend to receive in place');
+  assert.equal(inputs['2P_DOUBLE_LEFT'] || inputs['2P_DOUBLE_RIGHT'], true, 'unreachable low serve should trigger emergency dive');
+}
+
+// 16. UNDERHAND-only 봇 서브는 GameLoop에서 실제 rally 전환까지 수행된다.
+{
+  const entityManager = new EntityManager();
+  let state = initEntities(
+    entityManager,
+    { serveTypes: ['UNDERHAND'], stats: { speed: '중', power: '중', physique: '중', stamina: '중' } },
+    { id: 'hinata', serveTypes: ['UNDERHAND'], stats: { speed: '중', power: '중', physique: '중', stamina: '중' } },
+  );
+  state.server = 'player2';
+  state.serverSide = 'right';
+  state.phase = 'serve';
+  state.serveStep = 'ready';
+  const loop = new GameLoop({ entityManager, physicsMap, handlers });
+  const underhandAi = bot('aggressive', { serveTypes: ['UNDERHAND'], maxStamina: state.player2.stamina });
+  let reachedRally = false;
+  for (let tick = 0; tick < 130; tick++) {
+    const result = loop.tick(state, underhandAi.makeInputs(state));
+    state = result.nextState;
+    if (state.phase === 'rally') {
+      reachedRally = true;
+      break;
+    }
+  }
+  assert.equal(reachedRally, true, 'UNDERHAND-only bot should complete serve and enter rally');
+}
