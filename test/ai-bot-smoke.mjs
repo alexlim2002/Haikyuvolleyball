@@ -189,11 +189,11 @@ function bot(profile = 'rally', extra = {}) {
   const state = { ...ready, serveStep: 'tossed', ball: { x: 0.8825, y: 0.18, vx: 0, vy: 0.010, actionRangeCooldown: 0 } };
   assert.equal(ai.makeInputs(state)['2P_ACTION'], false, 'underhand serve should wait while ball is rising');
   let hit = false;
-  for (let tick = 0; tick < 28; tick++) {
-    state.ball = { x: 0.8825, y: 0.09, vx: 0, vy: -0.002, actionRangeCooldown: 0 };
+  for (let tick = 0; tick < 36; tick++) {
+    state.ball = { x: 0.8825, y: 0.07, vx: 0, vy: -0.002, actionRangeCooldown: 0 };
     hit ||= ai.makeInputs(state)['2P_ACTION'];
   }
-  assert.equal(hit, true, 'underhand serve should hit after wait/fall window');
+  assert.equal(hit, true, 'underhand serve should wait longer and hit at a lower underhand point');
   assert.equal(ai.makeInputs(state)['2P_ACTION'], false, 'underhand serve should not keep mashing Shift after hit');
 }
 
@@ -300,4 +300,35 @@ function bot(profile = 'rally', extra = {}) {
     }
   }
   assert.equal(reachedRally, true, 'UNDERHAND-only bot should complete serve and enter rally');
+}
+
+
+// 17. UNDERHAND 서브는 너무 높은 타점에서 바로 치지 않고 더 낮은 타점까지 기다린다.
+{
+  const ai = bot('aggressive', { serveTypes: ['UNDERHAND'] });
+  const ready = baseState({
+    phase: 'serve', serveStep: 'ready', server: 'player2', serverSide: 'right',
+    player2: player({ x: 0.92, actionType: 'SERVE' }),
+    ball: { x: 0.8825, y: 0.10, vx: 0, vy: 0, actionRangeCooldown: 0 },
+  });
+  for (let tick = 0; tick < 3; tick++) ai.makeInputs(ready);
+  const highToss = { ...ready, serveStep: 'tossed', ball: { x: 0.8825, y: 0.09, vx: 0, vy: -0.002, actionRangeCooldown: 0 } };
+  for (let tick = 0; tick < 38; tick++) {
+    assert.equal(ai.makeInputs(highToss)['2P_ACTION'], false, 'underhand serve should not hit while the tossed ball is still too high');
+  }
+  highToss.ball = { x: 0.8825, y: 0.065, vx: 0, vy: -0.002, actionRangeCooldown: 0 };
+  let lowHit = false;
+  for (let tick = 0; tick < 8; tick++) lowHit ||= ai.makeInputs(highToss)['2P_ACTION'];
+  assert.equal(lowHit, true, 'underhand serve should hit after the ball falls to a lower point');
+}
+
+// 18. 너무 빠른 자기 코트 공은 공격보다 Receive로 속도를 줄인다.
+{
+  const ai = bot('aggressive', { maxStamina: 120 });
+  const inputs = ai.makeInputs(baseState({
+    player2: player({ x: 0.66, onGround: true, facing: -1, stamina: 120 }),
+    ball: { x: 0.65, y: 0.21, vx: -0.017, vy: -0.004, actionRangeCooldown: 0 },
+  }));
+  assert.equal(inputs['2P_DOWN'], true, 'very fast own-court ball should use Receive to slow/stabilize play');
+  assert.equal(inputs['2P_ACTION'], false, 'fast-ball stabilization should not be Shift');
 }

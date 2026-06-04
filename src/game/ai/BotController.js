@@ -36,6 +36,10 @@ const SIMPLE_AI = {
   serveReceiveXRange: 116 / UNIT,
   receiveYMax: 145 / UNIT,
   serveReceiveYMax: 168 / UNIT,
+  fastBallSpeed: 12 / UNIT,
+  fastReceiveYMax: 220 / UNIT,
+  underhandHitMaxY: 64 / UNIT,
+  underhandFallbackMaxY: 78 / UNIT,
   receiveEmergencyY: 82 / UNIT,
   diveYMax: 76 / UNIT,
   serveDiveYMax: 62 / UNIT,
@@ -56,8 +60,8 @@ const SIMPLE_AI = {
   criticalStaminaThreshold: 0.18,
   receiveSuppressLimit: 2,
   servePrepareTicks: 2,
-  underhandTossWaitTicks: 18,
-  underhandFallbackHitTicks: 62,
+  underhandTossWaitTicks: 28,
+  underhandFallbackHitTicks: 76,
   jumpServeWaitTicks: 44,
   jumpServeMinAirTicks: 12,
   jumpServeFallbackTicks: 82,
@@ -201,6 +205,17 @@ export function createBotController(config = {}) {
       memory.plan = PLANS.RECEIVE;
       moveToward(inputs, context, receiveTarget);
       remember(context, inputs[keys.left] || inputs[keys.right] ? ACTIONS.MOVE : ACTIONS.WAIT, receiveTarget, inputs);
+      return finish(inputs, context);
+    }
+
+    const suppressReceiveForFastBall = shouldSuppressReceive(context);
+    if (isFastBall(context) && shouldReceive(context) && !suppressReceiveForFastBall) {
+      memory.plan = PLANS.RECEIVE;
+      press(inputs, keys.down);
+      memory.lastReceiveTick = memory.tick;
+      memory.postReceiveUntil = memory.tick + SIMPLE_AI.postReceiveFollowTicks;
+      memory.consecutiveReceiveCount += 1;
+      remember(context, ACTIONS.RECEIVE, ball.x, inputs);
       return finish(inputs, context);
     }
 
@@ -363,9 +378,9 @@ export function createBotController(config = {}) {
       return;
     }
 
-    const underhandWindow = ball.y >= player.y && ball.y < headY - 2 / UNIT;
+    const underhandWindow = serveType === "UNDERHAND" && ball.y >= player.y && ball.y <= SIMPLE_AI.underhandHitMaxY;
     const overhandWindow = serveType === "OVERHAND" && ball.y >= headY && ball.y <= headY + context.armLength;
-    const lateUnderhandFallback = serveType === "UNDERHAND" && elapsed >= SIMPLE_AI.underhandFallbackHitTicks && ball.y >= player.y && ball.y < headY;
+    const lateUnderhandFallback = serveType === "UNDERHAND" && elapsed >= SIMPLE_AI.underhandFallbackHitTicks && ball.y >= player.y && ball.y <= SIMPLE_AI.underhandFallbackMaxY;
     if (
       elapsed >= SIMPLE_AI.underhandTossWaitTicks &&
       withinFront &&
@@ -504,9 +519,17 @@ function shouldReceive(context) {
   const targetX = chooseReceiveTarget(context);
   const nearBall = Math.abs(ball.x - player.x) <= xRange;
   const waitingAtLanding = Math.abs(player.x - targetX) <= SIMPLE_AI.moveDeadZone * 1.8 && Math.abs(ball.x - player.x) <= xRange + 26 / UNIT;
-  const lowEnough = ball.y <= (serveThreat ? SIMPLE_AI.serveReceiveYMax : SIMPLE_AI.receiveYMax);
-  const fallingOrFast = ball.vy <= 0.003 || Math.hypot(ball.vx ?? 0, ball.vy ?? 0) > 8 / UNIT;
+  const fast = isFastBall(context);
+  const baseMaxY = serveThreat ? SIMPLE_AI.serveReceiveYMax : SIMPLE_AI.receiveYMax;
+  const lowEnough = ball.y <= (fast ? Math.max(baseMaxY, SIMPLE_AI.fastReceiveYMax) : baseMaxY);
+  const fallingOrFast = ball.vy <= 0.003 || fast || Math.hypot(ball.vx ?? 0, ball.vy ?? 0) > 8 / UNIT;
   return (nearBall || waitingAtLanding) && lowEnough && fallingOrFast;
+}
+
+function isFastBall(context) {
+  const ball = context?.ball;
+  if (!ball) return false;
+  return Math.hypot(finiteNumber(ball.vx, 0), finiteNumber(ball.vy, 0)) >= SIMPLE_AI.fastBallSpeed;
 }
 
 function shouldSuppressReceive(context) {

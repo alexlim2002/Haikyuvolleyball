@@ -107,3 +107,12 @@ sh build.sh
 * UNDERHAND 서브 안정성을 보강했다.
   * UNDERHAND-only 캐릭터는 overhand 높이에서 Shift를 누르지 않고, 공이 내려와 머리 아래 타점에 있을 때만 hit한다.
   * 실제 `GameLoop` smoke test로 UNDERHAND-only 봇이 serve phase에서 rally phase로 넘어가는지 확인했다.
+
+## 8. 4차 튜닝 내용
+
+* UNDERHAND 서브 타점을 더 낮췄다.
+  * toss 이후 wait tick을 늘리고, 공이 머리 근처에 있을 때 바로 치지 않도록 했다.
+  * UNDERHAND-only 봇은 공이 더 밑으로 내려왔을 때 hit해 추가 동작 없이 안정적으로 공을 넘기는 방향으로 조정했다.
+* 빠른 공 안정화 리시브를 추가했다.
+  * 자기 코트에서 공 속도가 일정 이상이면 공격 판단보다 `RECEIVE`를 우선해 속도를 줄이고 랠리를 안정화한다.
+  * 빠른 공은 일반 receive 높이보다 조금 높은 위치에서도 receive-ready를 먼저 잡도록 했다.
