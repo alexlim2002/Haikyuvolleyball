@@ -114,19 +114,22 @@ const BOT_TUNING = {
   serveHitBufferY: 8 / UNIT,
   serveActionCooldown: 18,
   serveJumpCooldown: 26,
-  minSpikeIntervalTicks: 34,
+  minSpikeIntervalTicks: 46,
   minDiveIntervalTicks: 52,
-  postSpikeRecoveryTicks: 18,
+  postSpikeRecoveryTicks: 24,
   postDiveRecoveryTicks: 34,
   diveDirectionLockTicks: 48,
+  postShiftRecoveryTicks: 28,
+  serveReceiveDiveLockTicks: 42,
+  postReceivePlanTicks: 54,
   spikeAirborneOnly: true,
   spikeYWindow: 70 / UNIT,
   spikeXWindow: 64 / UNIT,
   minSpikeStaminaRatio: 0.32,
   minDiveStaminaRatio: 0.28,
   underhandServeMinWaitTicks: 18,
-  jumpServeMinWaitTicks: 16,
-  jumpServeReactionTicks: 10,
+  jumpServeMinWaitTicks: 34,
+  jumpServeReactionTicks: 18,
   actionCooldowns: {
     receive: 5,
     dive: 48,
@@ -407,7 +410,8 @@ function playServe(inputs, context) {
     const jumpReady =
       elapsed >= BOT_TUNING.jumpServeMinWaitTicks &&
       player.onGround &&
-      ball.y >= groundHeadY + armLen * 0.45 &&
+      ball.vy <= 0 &&
+      ball.y >= groundHeadY + armLen * 0.55 &&
       canUseAction("serveJump", context, 1);
     if (jumpReady) {
       inputs[upKey] = true;
@@ -421,11 +425,12 @@ function playServe(inputs, context) {
     const jumpServeHitWindow =
       !player.onGround &&
       elapsed >= BOT_TUNING.jumpServeMinWaitTicks + BOT_TUNING.jumpServeReactionTicks &&
+      ball.vy < 0 &&
       ball.y >= headY - BOT_TUNING.serveHitBufferY &&
       ball.y <= headY + armLen + BOT_TUNING.serveHitBufferY;
     const jumpHitReady =
       jumpServeHitWindow &&
-      (ball.vy < 0 || tossRatio >= (profile.serveHitRatio ?? 0.58));
+      tossRatio >= Math.min(0.92, profile.serveHitRatio ?? 0.58);
     if (jumpHitReady && canUseAction("serveAction", context, 1)) {
       inputs[actionKey] = true;
       setCooldown("serveAction", context, 1);
@@ -624,6 +629,17 @@ function getTargetX(context, prediction) {
   const highNearNet = nearNet && ball.y > BOT_TUNING.highBallY;
   const sendOver = shouldSendOver(context.state, prediction, profile, context);
 
+  if (isOpponentJumpServeIncoming(context.state, prediction, context)) {
+    return {
+      targetX: clampToCourt(
+        prediction.intercept?.x ?? prediction.landingX,
+        playerSide,
+        context,
+      ),
+      mode: "serve-receive",
+    };
+  }
+
   if (sendOver) {
     const targetX = getSendOverPreparationX(context, prediction);
     return { targetX, mode: "send-over" };
@@ -700,6 +716,40 @@ function chooseAction(inputs, context, prediction) {
       context.ball.y <= dynamicLowBallY(prediction?.speed ?? 0) * 1.35) ||
       (stableReceiveProfile &&
         context.ball.y <= dynamicLowBallY(prediction?.speed ?? 0) * 1.25));
+  const serveReceive = shouldReceiveServe(
+    context.state,
+    prediction,
+    context.profile,
+    context,
+  );
+  const receiveSuppressed = shouldSuppressReceiveByStamina(
+    context,
+    receiveLoopPressure,
+    prediction,
+  );
+  const followUpChoice = chooseReceiveFollowUp(
+    context,
+    prediction,
+    window,
+    receiveLoopPressure,
+  );
+
+  if (
+    serveReceive &&
+    !receiveSuppressed &&
+    canSpend("receive", context, Math.max(urgency, 0.82), window)
+  ) {
+    candidates.push({
+      action: "SERVE_RECEIVE",
+      reason: "serve_receive",
+      score: 102,
+      apply() {
+        inputs[inputName(context.playerSide, "DOWN")] = true;
+        context.memory.currentPlan = "DEFEND";
+        setCooldown("receive", context, Math.max(urgency, 0.82));
+      },
+    });
+  }
 
   if (
     shouldLowStaminaClear(context, prediction, window, receiveLoopPressure) &&
@@ -714,6 +764,7 @@ function chooseAction(inputs, context, prediction) {
         (staminaMode === "critical" ? 4 : 0),
       apply() {
         pressTowardOpponent(inputs, context);
+        context.memory.currentPlan = "LOW_STAMINA_CLEAR";
         if (canSpikeNow(context, prediction, window)) {
           inputs[inputName(context.playerSide, "ACTION")] = true;
           setCooldown("spike", context, urgency);
@@ -726,6 +777,17 @@ function chooseAction(inputs, context, prediction) {
         } else {
           setCooldown("clear", context, urgency);
         }
+      },
+    });
+  }
+
+  if (followUpChoice) {
+    candidates.push({
+      action: followUpChoice.action,
+      reason: followUpChoice.reason,
+      score: followUpChoice.score,
+      apply() {
+        followUpChoice.apply(inputs, context, prediction, window, urgency);
       },
     });
   }
@@ -787,7 +849,9 @@ function chooseAction(inputs, context, prediction) {
     }
   }
 
-  const suppressReceive = receiveLoopEscape && !currentVeryLow;
+  const suppressReceive =
+    (receiveLoopEscape && !currentVeryLow) ||
+    (receiveSuppressed && !serveReceive);
   if (
     !suppressReceive &&
     window.receiveSaveNow &&
@@ -800,6 +864,7 @@ function chooseAction(inputs, context, prediction) {
         currentVeryLow || saveFirst ? 96 : 70 - receiveLoopPressure.score * 24,
       apply() {
         inputs[inputName(context.playerSide, "DOWN")] = true;
+        context.memory.currentPlan = "RECEIVE_SETUP";
         if (
           sendOverChoice?.directionalAssist ||
           receiveLoopPressure.score > 0.4
@@ -812,6 +877,7 @@ function chooseAction(inputs, context, prediction) {
 
   const diveNeeded =
     window.diveSaveSoon &&
+    !shouldAvoidDiveOnServe(context.state, prediction, context.profile, context) &&
     (!window.receiveSaveNow ||
       window.dx >
         BOT_TUNING.receiveRangeX *
@@ -829,6 +895,7 @@ function chooseAction(inputs, context, prediction) {
           prediction.intercept?.x ?? prediction.landingX,
         );
         setCooldown("dive", context, urgency);
+        context.memory.currentPlan = "EMERGENCY_DIVE";
       },
     });
   }
@@ -1064,6 +1131,195 @@ function canSpend(actionName, context, urgency = 0, window = null) {
 function pickActionCandidate(candidates) {
   if (!candidates.length) return null;
   return candidates.sort((a, b) => b.score - a.score)[0];
+}
+
+function isOpponentServeThreat(state, context) {
+  if (!state || !context?.ball) return false;
+  if (state.phase === "serve" && state.server && state.server !== context.cfg.playerId)
+    return true;
+  const serverIsOpponent = state.server && state.server !== context.cfg.playerId;
+  const earlyRallyFromOpponentServe =
+    serverIsOpponent &&
+    context.memory?.ownCourtTicks < BOT_TUNING.serveReceiveDiveLockTicks &&
+    ballMovingTowardSide(context.ball, context.playerSide);
+  const opponentServeAction =
+    context.opponent?.actionType === "SERVE_HIT" ||
+    context.opponent?.actionType === "SERVE" ||
+    (context.opponent?.actionType === "JUMP" &&
+      !isInMyCourt(context.ball.x, context.playerSide, context.netX));
+  return !!(
+    earlyRallyFromOpponentServe ||
+    (opponentServeAction &&
+      (ballMovingTowardSide(context.ball, context.playerSide) ||
+        context.ball.y >= BOT_TUNING.highBallY))
+  );
+}
+
+function isOpponentJumpServeIncoming(state, prediction, context) {
+  if (!isOpponentServeThreat(state, context)) return false;
+  const opponentAirServe =
+    context.opponent?.actionType === "JUMP" ||
+    context.opponent?.actionType === "SERVE_HIT" ||
+    state?.serveStep === "tossed";
+  const fastIncoming =
+    (prediction?.speed ?? ballSpeed(context.ball)) >=
+      BOT_TUNING.fastBallSpeed * 0.72 ||
+    Math.abs(context.ball.vx ?? 0) >= BOT_TUNING.fastBallSpeed * 0.52;
+  return !!(
+    opponentAirServe &&
+    (fastIncoming ||
+      prediction?.willEnterMyCourt ||
+      ballMovingTowardSide(context.ball, context.playerSide))
+  );
+}
+
+function shouldReceiveServe(state, prediction, _profile, context) {
+  if (!isOpponentJumpServeIncoming(state, prediction, context)) return false;
+  const { player, ball, playerSide, netX, profile } = context;
+  if (!player.onGround) return false;
+  const target = prediction?.intercept ?? {
+    x: prediction?.landingX ?? ball.x,
+    y: ball.y,
+    tick: prediction?.landingTick ?? 99,
+    vy: ball.vy,
+  };
+  const ballInMyCourt = isInMyCourt(ball.x, playerSide, netX);
+  const incoming = ballInMyCourt || prediction?.willEnterMyCourt;
+  if (!incoming) return false;
+  const speed = prediction?.speed ?? ballSpeed(ball);
+  const dx = Math.abs(target.x - player.x);
+  const receiveRange =
+    BOT_TUNING.receiveRangeX * (profile.receiveMultiplier ?? 1) +
+    BOT_TUNING.fastReceiveRangeBonus * 1.15 +
+    (profile.skillFreedom ?? 0) * 0.06;
+  const heightGate =
+    dynamicLowBallY(speed) * (1.45 + (profile.skillFreedom ?? 0) * 0.8);
+  const timingGate =
+    target.tick <= (speed >= BOT_TUNING.fastBallSpeed ? 34 : 26) ||
+    (ballInMyCourt && ball.y <= heightGate);
+  return (
+    timingGate &&
+    dx <= receiveRange &&
+    (target.y <= heightGate || ball.y <= heightGate) &&
+    (target.vy <= 0 || ball.vy <= 0)
+  );
+}
+
+function shouldAvoidDiveOnServe(state, prediction, _profile, context) {
+  if (!isOpponentJumpServeIncoming(state, prediction, context)) return false;
+  const { player, ball, playerSide, netX } = context;
+  if (!isInMyCourt(ball.x, playerSide, netX)) return true;
+  const target = prediction?.intercept ?? {
+    x: prediction?.landingX ?? ball.x,
+    y: ball.y,
+    tick: prediction?.landingTick ?? 99,
+    vy: ball.vy,
+  };
+  if (canReachByWalking(player, target.x, target.tick, context)) return true;
+  if ((target.tick ?? 99) > 6) return true;
+  if (ball.y > BOT_TUNING.veryLowBallY * 0.9) return true;
+  return false;
+}
+
+function canReachByWalking(player, landingX, ticksToLanding, context) {
+  const speed = context.cfg?.playerSpeed ?? DEFAULTS.playerSpeed;
+  const reaction = context.cfg?.reactionDelayTicks ?? DEFAULTS.reactionDelayTicks;
+  const travelTicks = Math.max(0, finiteNumber(ticksToLanding, 0) - reaction);
+  const receiveCushion =
+    BOT_TUNING.receiveRangeX *
+    (0.75 + (context.profile?.receiveMultiplier ?? 1) * 0.22);
+  return (
+    Math.abs(finiteNumber(landingX, player?.x ?? 0.5) - (player?.x ?? 0.5)) <=
+    speed * travelTicks + receiveCushion
+  );
+}
+
+function shouldSuppressReceiveByStamina(context, receiveLoopPressure, prediction) {
+  const ratio = getStaminaRatio(context);
+  if (ratio > STAMINA_TUNING.lowRatio) return false;
+  const count = context.memory?.consecutiveReceiveCount ?? 0;
+  const policy =
+    LOW_STAMINA_POLICY[context.profileId] ?? LOW_STAMINA_POLICY.rally;
+  const ballVeryLow =
+    context.ball.y <= dynamicLowBallY(prediction?.speed ?? 0) * 0.72;
+  if (ballVeryLow && receiveLoopPressure?.score < 0.9) return false;
+  return (
+    count >= Math.max(1, policy.receiveRepeatLimit) ||
+    receiveLoopPressure?.shouldEscape ||
+    (ratio <= STAMINA_TUNING.criticalRatio && count >= 1)
+  );
+}
+
+function chooseReceiveFollowUp(context, prediction, window, receiveLoopPressure) {
+  const memory = context.memory;
+  if (!memory) return null;
+  const recentlyReceived =
+    memory.receivedBallRecently ||
+    memory.lastSelectedAction === "RECEIVE" ||
+    memory.lastSelectedAction === "SERVE_RECEIVE" ||
+    memory.tick <= (memory.postReceivePlanUntil ?? 0);
+  if (!recentlyReceived) return null;
+  const { player, ball, playerSide, netX } = context;
+  if (!isInMyCourt(ball.x, playerSide, netX)) return null;
+  if (ball.y < COMMON_SEND_OVER.lowStaminaClearY) return null;
+
+  const lowStamina = isLowStamina(context);
+  const canAttackSetup =
+    shouldPrepareSpike(context, prediction, window) ||
+    ball.y >= COMMON_SEND_OVER.attackSetupMinY;
+
+  if (lowStamina || receiveLoopPressure?.shouldEscape) {
+    return {
+      action: "SAFE_SEND_OVER",
+      reason: "post_receive_safe_send_over",
+      score: 76 + (receiveLoopPressure?.score ?? 0) * 14,
+      apply(inputs, ctx) {
+        pressTowardOpponent(inputs, ctx);
+        ctx.memory.currentPlan = "SAFE_SEND_OVER";
+      },
+    };
+  }
+
+  if (player.onGround && canAttackSetup) {
+    if (shouldJumpForSpike(context, prediction, window)) {
+      return {
+        action: "FOLLOW_UP_JUMP_ATTACK",
+        reason: "post_receive_jump_attack",
+        score: 80,
+        apply(inputs, ctx, _prediction, _window, urgency) {
+          pressTowardOpponent(inputs, ctx);
+          inputs[inputName(ctx.playerSide, "UP")] = true;
+          ctx.memory.currentPlan = "JUMP_ATTACK";
+          setCooldown("jump", ctx, urgency);
+        },
+      };
+    }
+    return {
+      action: "APPROACH_ATTACK",
+      reason: "post_receive_approach",
+      score: 62,
+      apply(inputs, ctx) {
+        pressTowardOpponent(inputs, ctx);
+        ctx.memory.currentPlan = "APPROACH_ATTACK";
+      },
+    };
+  }
+
+  if (!player.onGround && canSpikeNow(context, prediction, window)) {
+    return {
+      action: "FOLLOW_UP_SPIKE",
+      reason: "post_receive_spike",
+      score: 88,
+      apply(inputs, ctx, _prediction, _window, urgency) {
+        inputs[inputName(ctx.playerSide, "ACTION")] = true;
+        pressTowardOpponent(inputs, ctx);
+        ctx.memory.currentPlan = "JUMP_ATTACK";
+        setCooldown("spike", ctx, urgency);
+      },
+    };
+  }
+
+  return null;
 }
 
 function shouldSendOver(_state, prediction, profile, context) {
@@ -1360,6 +1616,8 @@ function shouldReceive(context, prediction) {
 function shouldDive(context, prediction) {
   const { player, ball, playerSide, netX, profile } = context;
   if (!player.onGround) return false;
+  if (shouldAvoidDiveOnServe(context.state, prediction, profile, context))
+    return false;
   if (!isInMyCourt(ball.x, playerSide, netX) && !prediction?.willEnterMyCourt)
     return false;
   if (!isInMyCourt(prediction.landingX, playerSide, netX))
@@ -1399,11 +1657,7 @@ function shouldDive(context, prediction) {
     return false;
   const tooFarForReceive = dx > receiveLimit * (0.84 - freedom * 0.2);
   const reachableByDive = dx <= diveLimit;
-  const canWalk =
-    dx <=
-    (context.cfg?.playerSpeed ?? DEFAULTS.playerSpeed) *
-      Math.max(0, (target.tick ?? 0) - (context.cfg?.reactionDelayTicks ?? 0)) +
-      BOT_TUNING.receiveRangeX * 0.72;
+  const canWalk = canReachByWalking(player, target.x, target.tick, context);
   if (canWalk && target.tick > 8) return false;
   const lead =
     BOT_TUNING.diveLeadTicks +
@@ -1412,9 +1666,9 @@ function shouldDive(context, prediction) {
     Math.round(freedom * 20);
   const soonLow =
     target.tick <= lead &&
-    target.y <= dynamicLowBallY(speed) * (1.35 + freedom);
+    target.y <= dynamicLowBallY(speed) * (1.1 + freedom * 0.6);
   const currentEmergency =
-    ball.y <= BOT_TUNING.veryLowBallY + freedom * 0.04 &&
+    ball.y <= BOT_TUNING.veryLowBallY * (0.92 + freedom * 0.25) &&
     Math.abs(ball.x - player.x) <=
       BOT_TUNING.diveCommitRangeX * profile.diveMultiplier + freedom * 0.06;
   return (
@@ -1463,7 +1717,13 @@ function canSpikeNow(context, prediction, window = null) {
   if (!isInMyCourt(ball.x, playerSide, netX) && Math.abs(ball.x - netX) > 0.12)
     return false;
   if (!isFacingOpponentCourt(player, playerSide)) return false;
+  if ((memory?.tick ?? 0) < (memory?.postShiftRecoveryUntil ?? 0)) return false;
   if ((memory?.tick ?? 0) < (memory?.postSpikeRecoveryUntil ?? 0)) return false;
+  if (
+    (memory?.tick ?? 0) - (memory?.lastShiftTick ?? -Infinity) <
+    BOT_TUNING.postShiftRecoveryTicks
+  )
+    return false;
   if (
     (memory?.tick ?? 0) - (memory?.lastSpikeTick ?? -Infinity) <
     BOT_TUNING.minSpikeIntervalTicks
@@ -1898,10 +2158,17 @@ function makeRallyMemory() {
     lastSpikeTick: -Infinity,
     lastDiveTick: -Infinity,
     lastReceiveTick: -Infinity,
+    lastShiftTick: -Infinity,
     lastBallSide: null,
     sendOverUrgency: 0,
+    postShiftRecoveryUntil: 0,
     postDiveRecoveryUntil: 0,
     postSpikeRecoveryUntil: 0,
+    postReceivePlanUntil: 0,
+    receivedBallRecently: false,
+    plannedFollowUpAction: null,
+    failedShiftCount: 0,
+    shiftAttemptOnCurrentBall: false,
     lastDiveDirection: null,
     diveDirectionLockUntil: 0,
     serveState: "SERVE_PREPARE",
@@ -1921,10 +2188,17 @@ function resetRallyMemory(memory) {
   memory.lastSpikeTick = -Infinity;
   memory.lastDiveTick = -Infinity;
   memory.lastReceiveTick = -Infinity;
+  memory.lastShiftTick = -Infinity;
   memory.lastBallSide = null;
   memory.sendOverUrgency = 0;
+  memory.postShiftRecoveryUntil = 0;
   memory.postDiveRecoveryUntil = 0;
   memory.postSpikeRecoveryUntil = 0;
+  memory.postReceivePlanUntil = 0;
+  memory.receivedBallRecently = false;
+  memory.plannedFollowUpAction = null;
+  memory.failedShiftCount = 0;
+  memory.shiftAttemptOnCurrentBall = false;
   memory.lastDiveDirection = null;
   memory.diveDirectionLockUntil = 0;
   memory.serveState = "SERVE_PREPARE";
@@ -1933,20 +2207,53 @@ function resetRallyMemory(memory) {
 }
 
 function updateRallyMemoryBeforeAction(memory, context) {
-  if (isInMyCourt(context.ball.x, context.playerSide, context.netX)) {
+  const ballSide = isInMyCourt(context.ball.x, context.playerSide, context.netX)
+    ? "own"
+    : "opponent";
+  if (memory.lastBallSide && memory.lastBallSide !== ballSide) {
+    memory.consecutiveReceiveCount = 0;
+    memory.shiftAttemptOnCurrentBall = false;
+    if (ballSide === "opponent") {
+      memory.receivedBallRecently = false;
+      memory.plannedFollowUpAction = null;
+      memory.postReceivePlanUntil = 0;
+    }
+  }
+  memory.lastBallSide = ballSide;
+  if (ballSide === "own") {
     memory.ownCourtTicks++;
   } else {
     memory.ownCourtTicks = 0;
     memory.consecutiveReceiveCount = 0;
   }
+  if (memory.tick > (memory.postReceivePlanUntil ?? 0)) {
+    memory.receivedBallRecently = false;
+    memory.plannedFollowUpAction = null;
+  }
 }
 
 function updateRallyMemoryAfterAction(memory, selectedAction, context) {
-  if (selectedAction === "RECEIVE") {
+  if (selectedAction === "RECEIVE" || selectedAction === "SERVE_RECEIVE") {
     memory.consecutiveReceiveCount++;
     memory.lastReceiveTick = memory.tick;
+    memory.receivedBallRecently = true;
+    memory.postReceivePlanUntil = memory.tick + BOT_TUNING.postReceivePlanTicks;
+    memory.plannedFollowUpAction = isLowStamina(context)
+      ? "SAFE_SEND_OVER"
+      : "APPROACH_ATTACK";
   } else if (selectedAction && selectedAction !== "SEND_OVER_JUMP" && selectedAction !== "SEND_OVER_APPROACH") {
     memory.consecutiveReceiveCount = 0;
+  }
+  const usedShift =
+    selectedAction?.includes("SPIKE") ||
+    selectedAction === "UNDERHAND_SERVE" ||
+    selectedAction === "OVERHAND_SERVE" ||
+    selectedAction === "JUMP_SERVE_HIT";
+  if (usedShift) {
+    memory.lastShiftTick = memory.tick;
+    memory.postShiftRecoveryUntil =
+      memory.tick + BOT_TUNING.postShiftRecoveryTicks;
+    memory.shiftAttemptOnCurrentBall = true;
   }
   if (selectedAction?.includes("SPIKE")) {
     memory.lastSpikeTick = memory.tick;
@@ -1959,6 +2266,13 @@ function updateRallyMemoryAfterAction(memory, selectedAction, context) {
   if (selectedAction) {
     memory.lastAction = selectedAction;
     memory.lastActionTick = memory.tick;
+    if (
+      selectedAction === "APPROACH_ATTACK" ||
+      selectedAction === "FOLLOW_UP_JUMP_ATTACK" ||
+      selectedAction === "SAFE_SEND_OVER"
+    ) {
+      memory.plannedFollowUpAction = selectedAction;
+    }
   }
   memory.lastSelectedAction = selectedAction;
   memory.sendOverUrgency = getSendOverUrgency(context, null, context.profile);
@@ -2007,6 +2321,8 @@ function makeInitialDebugInfo(profile) {
     ownCourtTicks: 0,
     consecutiveReceiveCount: 0,
     sendOverUrgency: 0,
+    currentPlan: "IDLE",
+    plannedFollowUpAction: null,
     staminaRatio: null,
     staminaMode: null,
     receiveLoopPressure: null,
@@ -2040,6 +2356,8 @@ function buildDebugInfo(
     ownCourtTicks: context?.memory?.ownCourtTicks ?? 0,
     consecutiveReceiveCount: context?.memory?.consecutiveReceiveCount ?? 0,
     sendOverUrgency: roundDebug(context?.memory?.sendOverUrgency),
+    currentPlan: context?.memory?.currentPlan ?? null,
+    plannedFollowUpAction: context?.memory?.plannedFollowUpAction ?? null,
     opponentCourtTargetX: context
       ? roundDebug(getOpponentCourtTargetX(context.state, context.playerSide))
       : null,

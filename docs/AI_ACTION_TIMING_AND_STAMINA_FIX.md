@@ -82,3 +82,78 @@ sh build.sh
 * 니시노야 바닥 Shift 남발 여부: receive 후 공이 떴을 때 지상 Shift만 반복하지 않는지 확인한다.
 * low stamina 상황: Spike/Dive 빈도가 줄고 네트 방향 setup이 우선되는지 확인한다.
 * `/src/asset/...` 404 여부: Network 탭에서 `/src/asset/` 요청이 없는지 확인한다.
+
+## 7. 2차 수정: Serve Receive and Follow-up Decisions
+
+### 플레이어 점프 서브 대응 로직
+
+* 상대가 서브 중이거나 직전 서버가 상대이고 공이 빠르게 AI 코트로 향하는 경우를 `isOpponentServeThreat` / `isOpponentJumpServeIncoming`으로 별도 감지한다.
+* 상대 점프 서브 공이 아직 상대 코트에 있으면 다이브를 금지하고 예상 낙하지점으로 먼저 이동한다.
+* 빠른 서브가 자기 코트에 들어왔고 리시브 가능한 높이/거리이면 `SERVE_RECEIVE`를 우선 선택한다.
+
+### Shift 남발 추가 억제
+
+* 기존 airborne-only spike 조건에 더해 `lastShiftTick`, `postShiftRecoveryUntil`, `postShiftRecoveryTicks`를 추가했다.
+* 일반 랠리에서 지상 Shift는 계속 금지되며, 최근 Shift 이후 recovery가 끝나기 전에는 다시 Shift하지 않는다.
+* serve hit도 내부 Shift recovery에 기록해 서브 중 Shift 반복을 줄인다.
+
+### 리시브 후 follow-up plan
+
+* RECEIVE 또는 SERVE_RECEIVE 이후 `postReceivePlanUntil`, `receivedBallRecently`, `plannedFollowUpAction`을 기록한다.
+* 공이 자기 코트에서 떠 있으면 `APPROACH_ATTACK`, `FOLLOW_UP_JUMP_ATTACK`, `SAFE_SEND_OVER` 중 하나를 유지한다.
+* 지상 상태에서는 즉시 Shift하지 않고 접근 또는 점프를 우선한다.
+* 공중에서 높이/거리/facing/stamina 조건이 맞을 때만 follow-up spike를 허용한다.
+
+### low stamina receive suppression
+
+* `shouldSuppressReceiveByStamina`를 추가해 low/critical stamina에서 반복 리시브를 제한한다.
+* 아주 낮은 emergency 공은 한 번 살릴 수 있지만, 이후에는 네트 방향 이동 또는 safe send-over plan으로 전환한다.
+* 랠리형/수비형 profile도 receive-only loop에 빠지지 않도록 공통 적용했다.
+
+### 히나타 UNDERHAND 서브 수정
+
+* UNDERHAND-only 캐릭터는 `SERVE_PREPARE → SERVE_TOSS → SERVE_WAIT_FALL → SERVE_HIT` 흐름을 유지한다.
+* toss 직후와 공 상승 중에는 Shift를 금지한다.
+* 공이 내려오고 낮은 타격 가능 높이에 들어왔을 때만 Shift를 한 번 입력하며, hit 이후 같은 tossed 상태에서 Shift를 반복하지 않는다.
+
+### 카게야마 jump serve timing 수정
+
+* JUMP serve는 toss 직후 점프하지 않고 `jumpServeMinWaitTicks` 이후에도 공이 실제로 하강(`ball.vy <= 0`)해야 점프한다.
+* airborne hit도 공이 하강 중이고 높이/거리 window가 맞을 때만 허용한다.
+* GameLoop smoke에서 카게야마식 jump serve가 toss 후 충분히 기다린 뒤 점프하도록 확인했다.
+
+### 다이브 조건 강화
+
+* `shouldAvoidDiveOnServe`와 `canReachByWalking`을 추가했다.
+* 상대 서브 상황에서는 공이 자기 코트에 들어오기 전, 이동으로 받을 수 있는 경우, 바닥 직전이 아닌 경우 다이브를 금지한다.
+* 일반 랠리에서도 다이브 높이 조건을 더 낮추고, 이동 가능하면 receive/positioning을 우선한다.
+
+### 자동 테스트 결과
+
+실행 대상:
+
+```bash
+node --check src/game/ai/BotController.js
+node --check src/main.js
+node test/ai-bot-smoke.mjs
+node scripts/check-asset-paths.mjs
+sh build.sh
+```
+
+2차로 추가/강화한 smoke 항목:
+
+* 상대 점프 서브 직후 공이 상대 코트에 있을 때 다이브하지 않음.
+* 빠른 상대 서브가 자기 코트로 들어올 때 `SERVE_RECEIVE` 우선.
+* 리시브 후 공이 뜨면 follow-up plan이 유지됨.
+* low stamina repeated receive 상황에서 receive suppression 및 net-direction follow-up 발생.
+* jump serve가 toss 직후 바로 Shift/Jump하지 않고 낙하 구간에서 점프함.
+
+### 브라우저 확인 항목
+
+* 플레이어 점프 서브를 넣었을 때 AI가 무의미하게 왼쪽 다이브하지 않는지.
+* AI가 빠른 서브를 위치 선정 후 안정적으로 RECEIVE하는지.
+* 리시브 후 공을 무시하지 않고 접근/점프/안전 넘기기 후속 행동을 하는지.
+* 히나타 UNDERHAND 서브가 toss 후 내려오는 공을 타격하는지.
+* 카게야마 jump serve가 toss 직후가 아니라 공이 떨어질 때 점프/타격하는지.
+* low stamina 상태에서 카게야마/츠키시마/니시노야가 receive-only loop에 덜 빠지는지.
+* Network 탭에 `/src/asset/...` 요청이 없는지.
